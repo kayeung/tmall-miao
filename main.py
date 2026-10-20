@@ -7,6 +7,15 @@ import time
 import threading
 import urllib.request
 
+# Windows 控制台默认是 GBK，打印 ❌ / ⚠️ 等字符会抛 UnicodeEncodeError，
+# 这里把编码错误降级为替换字符，保证任何终端下都不会因为一个符号崩掉。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(errors='replace')
+    except Exception:
+        pass
+
+
 # 打包后将内置的 tools 目录加入 PATH，使 hdc/adb 可被找到
 if getattr(sys, 'frozen', False):
     _tools_dir = os.path.join(sys._MEIPASS, 'tools')
@@ -375,7 +384,7 @@ def main():
             else:
                 print(f"{Colors.FAIL}❌ 无效选择，请重新输入。{Colors.ENDC}")
                 time.sleep(0.5)
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, EOFError):
             print(f"\n{Colors.WARNING}⚠️ 操作已取消。{Colors.ENDC}")
             time.sleep(0.5)
         except RuntimeError as e:
@@ -388,4 +397,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (KeyboardInterrupt, EOFError):
+        print('\n已退出')
