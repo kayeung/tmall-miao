@@ -76,11 +76,11 @@ def _browse_wait(desc):
 
 
 def do_browse(d, task):
-    """执行一次浏览任务：点按钮 -> 按类型浏览（滑动计时）-> 返回。"""
+    """执行一次浏览任务：点按钮 -> 按类型浏览（滑动计时）-> 返回。成功返回 True。"""
     logger.info('执行任务：%s（%s）', task['name'], task['desc'])
     wait = _browse_wait(task['desc'])
     logger.info('浏览中，停留 %d 秒', wait)
-    activity.run_browse_task(d, task['node'], wait)
+    return activity.run_browse_task(d, task, wait, _panel_titles(), ui.parse_tasks)
 
 
 def do_claim(d, task):
@@ -113,6 +113,7 @@ def _find_actionable(d, attempts):
 def run(d, mode='auto', keyword=activity.KEYWORD):
     """执行金币任务，返回结果摘要字符串。"""
     logger.info('开始运行金币任务')
+    activity.prepare_device(d)
     mute(d)
     activity.enter_activity(d, mode, keyword)
 
@@ -161,8 +162,8 @@ def run(d, mode='auto', keyword=activity.KEYWORD):
         key = _task_key(task['name'])
         attempts[key] = attempts.get(key, 0) + 1
         try:
-            do_browse(d, task)
-            done += 1
+            if do_browse(d, task):
+                done += 1
         except Exception as e:
             logger.warning('任务「%s」执行失败: %s', key, e)
             time.sleep(2)

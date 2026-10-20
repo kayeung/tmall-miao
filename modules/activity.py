@@ -67,14 +67,15 @@ def ensure_taobao(d):
     这里只把淘宝切回前台；如果外部 App 卡在返回栈里反复抢焦点，就把它强制停掉
     （不点它的任何弹窗，避免替用户做授权）。
     """
+    ensure_unlocked(d)
+
     pkg = (d.app_current() or {}).get('package', '')
     if pkg == ui.TAOBAO_PKG:
         return True
 
     logger.warning('当前前台不是淘宝（%s），切回淘宝', pkg or '未知')
     d.start_app(ui.TAOBAO_PKG)
-    time.sleep(4)
-    if (d.app_current() or {}).get('package') == ui.TAOBAO_PKG:
+    if _wait_taobao(d, 25):
         return True
 
     if pkg in BLOCK_APPS:
@@ -85,12 +86,25 @@ def ensure_taobao(d):
             logger.warning('强制停止失败: %s', e)
         time.sleep(1.5)
         d.start_app(ui.TAOBAO_PKG)
-        time.sleep(4)
+        if _wait_taobao(d, 25):
+            return True
 
-    ok = (d.app_current() or {}).get('package') == ui.TAOBAO_PKG
-    if not ok:
-        logger.warning('切换淘宝失败，当前仍是 %s', (d.app_current() or {}).get('package'))
-    return ok
+    logger.warning('切换淘宝失败，当前仍是 %s', (d.app_current() or {}).get('package'))
+    return False
+
+
+def _wait_taobao(d, timeout=25):
+    """等待淘宝到前台；期间处理 vivo/OPPO 的「应用分身」选择框。"""
+    for _ in range(timeout):
+        cur = d.app_current() or {}
+        if cur.get('package') == ui.TAOBAO_PKG:
+            return True
+        if ui.is_clone_resolver(d):
+            ui.tap_app_clone_main(d)
+            time.sleep(2)
+            continue
+        time.sleep(1)
+    return False
 
 
 def scroll_top(d):
@@ -101,7 +115,16 @@ def scroll_top(d):
 def open_activity(d, keyword=KEYWORD):
     """搜索关键词进入活动页。"""
     logger.info('打开淘宝并搜索活动：%s', keyword)
-    open_taobao_search(d, keyword)
+    ensure_unlocked(d)
+    for attempt in range(2):
+        try:
+            open_taobao_search(d, keyword)
+            break
+        except Exception as e:
+            if attempt == 1:
+                raise
+            logger.warning('打开淘宝/搜索失败（%s），重试一次', e)
+            time.sleep(3)
     logger.info('等待活动页加载...')
     if not wait_activity(d):
         raise RuntimeError('未检测到活动页，请确认淘宝已登录、活动可正常进入')
@@ -185,16 +208,86 @@ def tap_entry(d, ratio, label):
     return True
 
 
+def wake_screen(d):
+    """点亮屏幕（熄屏状态下 App 起不到前台）。"""
+    try:
+        info = d.device.info or {}
+        if not info.get('screenOn', True):
+            logger.info('屏幕已熄灭，正在点亮')
+            d.device.screen_on()
+            time.sleep(1)
+    except Exception as e:
+        logger.debug('读取屏幕状态失败: %s', e)
+
+
+def _is_locked(d, nodes=None):
+    """是否处于锁屏界面。"""
+    nodes = nodes if nodes is not None else ui.dump_nodes(d)
+    for n in nodes:
+        blob = n['text'] + n['desc']
+        if '解锁' in blob or '上滑' in blob and '锁' in blob:
+            return True
+    return False
+
+
+def ensure_unlocked(d, tries=2):
+    """保证手机已解锁；无密码时会自动上滑解锁，有密码则明确报错。"""
+    wake_screen(d)
+    if not _is_locked(d):
+        return True
+
+    for i in range(tries):
+        logger.warning('手机处于锁屏，尝试解锁（第%d次）', i + 1)
+        try:
+            d.device.unlock()
+        except Exception as e:
+            logger.debug('unlock 调用失败: %s', e)
+        time.sleep(1.5)
+        if not _is_locked(d):
+            logger.info('已解锁')
+            return True
+
+    raise RuntimeError('手机处于锁屏状态，请先解锁手机（或关闭锁屏密码）后再运行')
+
+
+def prepare_device(d):
+    """运行前的设备准备：常亮 + 解锁。"""
+    try:
+        # 充电/连接 USB 时不熄屏，避免跑到一半黑屏
+        d.shell(['svc', 'power', 'stayon', 'true'])
+    except Exception as e:
+        logger.debug('设置常亮失败（忽略）: %s', e)
+    ensure_unlocked(d)
+
+
+def _is_taobao_home(nodes):
+    """是否停在淘宝首页（有首页搜索栏）。"""
+    return any(n['desc'] == '搜索栏' or n['text'] == '搜索栏' for n in nodes)
+
+
 def back_to_activity(d, attempts=3):
-    """连续返回到活动页，防止停留在任务打开的商品页/搜索页。"""
+    """连续返回到活动页，防止停留在任务打开的商品页/搜索页。
+
+    注意：如果已经回到淘宝首页或已经退出淘宝，就不能再按返回键了
+    （否则会把整个 App 退到桌面），直接返回 False 让调用方重新搜索进入。
+    """
     ensure_taobao(d)
     for i in range(attempts):
-        if on_activity(d):
+        panel, nodes = ui.inspect(d)
+        if panel or _activity_markers(nodes):
             return True
+        if _is_taobao_home(nodes):
+            logger.info('已回到淘宝首页，不再按返回键')
+            return False
+        if (d.app_current() or {}).get('package') != ui.TAOBAO_PKG:
+            logger.info('已离开淘宝，停止按返回键')
+            return False
         logger.info('当前不在活动页，返回上一级 (%d/%d)', i + 1, attempts)
         d.go_back()
         time.sleep(2)
-    if on_activity(d):
+
+    panel, nodes = ui.inspect(d)
+    if panel or _activity_markers(nodes):
         return True
     logger.warning('多次返回后仍未回到活动页')
     return False
@@ -244,11 +337,12 @@ def scroll_panel(d, direction='up'):
     else:
         y1, y2 = int(h * 0.55), int(h * 0.80)
     try:
-        d.swipe(x, y1, x, y2, duration=0.3)
+        # 慢一点滑，避免惯性滚动导致后面按坐标点击落空
+        d.swipe(x, y1, x, y2, duration=0.45)
     except Exception as e:
         logger.warning('面板滑动失败（忽略）: %s', e)
         return False
-    time.sleep(1.2)
+    time.sleep(1.6)
     return True
 
 
@@ -283,69 +377,190 @@ def browse_page(d, seconds):
     y1, y2 = int(h * 0.75), int(h * 0.45)
     deadline = time.time() + seconds
     swipes = 0
+    tick = 0
+    is_detail = False
     while time.time() < deadline:
-        current = d.app_current() or {}
-        if current.get('package') != ui.TAOBAO_PKG:
-            logger.warning('任务页跳到了其他应用（%s），切回淘宝', current.get('package'))
-            ensure_taobao(d)
-            return False
-        if 'detail' in (current.get('activity') or '').lower():
-            time.sleep(1.5)
-            continue
+        # 查前台应用要发 adb 命令，比较慢，每 3 次滑动手势查一次即可
+        if tick % 3 == 0:
+            current = d.app_current() or {}
+            if current.get('package') != ui.TAOBAO_PKG:
+                logger.warning('任务页跳到了其他应用（%s），切回淘宝', current.get('package'))
+                ensure_taobao(d)
+                return False
+            is_detail = 'detail' in (current.get('activity') or '').lower()
+        tick += 1
+
         try:
-            # 拟人滑动轨迹（带波形抖动），比直线 swipe 更接近真人浏览
-            human_swipe(d, x, y1, x, y2, wave_range=16)
+            # 拟人滑动轨迹（带波形抖动），比直线 swipe 更接近真人浏览；
+            # 商品详情页也滑，只是间隔长一点，避免频繁手势误触
+            human_swipe(d, x, y1, x, y2, wave_range=16, base_speed=0.4)
             swipes += 1
         except Exception as e:
             logger.warning('浏览滑动失败（忽略）: %s', e)
-        time.sleep(1.2)
+        time.sleep(2.0 if is_detail else 1.2)
     logger.debug('浏览页面共滑动 %d 次', swipes)
     return True
 
 
+def _label(n):
+    """节点上显示的文字：H5 在 text 里，原生控件常常在 content-desc 里。"""
+    return n['text'] or n['desc']
+
+
 def _is_search_page(nodes):
-    texts = {n['text'] for n in nodes}
-    return '搜索发现' in texts or '搜索有福利' in texts
+    labels = {_label(n) for n in nodes}
+    return '搜索发现' in labels or '搜索有福利' in labels
 
 
-def tap_first_recommendation(d, nodes):
-    """搜索类任务：点「搜索发现」下面的第一个推荐词，进商品列表。"""
-    anchor = ui.find_nodes(nodes, text='搜索发现')
+def wait_search_page(d, timeout=10):
+    """搜索类任务点开后页面加载慢，轮询等「搜索发现」出现。"""
+    deadline = time.time() + timeout
+    last = []
+    while time.time() < deadline:
+        last = ui.dump_nodes(d)
+        if _is_search_page(last):
+            return last
+        time.sleep(0.8)
+    logger.debug('等待搜索页超时，节点数=%d', len(last))
+    return None
+
+
+def _page_signature(nodes):
+    return {_label(n) for n in nodes if _label(n)}
+
+
+def _search_cards(nodes):
+    """从当前页面里挑出「搜索发现」下面的商品卡片（按位置从上到下）。"""
+    anchor = [n for n in nodes if _label(n) == '搜索发现']
     if not anchor:
-        return False
+        return []
     a = anchor[0]
-    cands = [n for n in nodes
-             if n['clickable'] and n['t'] >= a['b'] and n['l'] < a['r'] and n['text']]
-    if not cands:
-        return False
-    item = min(cands, key=lambda n: (n['t'], n['l']))
-    logger.info('点击推荐词：%s', item['text'].split()[0])
-    ui.tap_node(d, item)
-    return True
+    cards = []
+    for n in nodes:
+        label = _label(n)
+        if not n['clickable'] or not label:
+            continue
+        if label in ('搜索发现',) or label.startswith('点击隐藏'):
+            continue
+        # 标题底边常常比第一排卡片顶边还低几像素，这里留容差
+        if n['t'] < a['t'] - 10:
+            continue
+        width = n['r'] - n['l']
+        height = n['b'] - n['t']
+        if width < 120 or height < 80:  # 排除小标签/小按钮
+            continue
+        cards.append(n)
+    cards.sort(key=lambda n: (n['t'], n['l']))
+    return cards
 
 
-def run_browse_task(d, node, seconds):
-    """执行一次浏览任务：点按钮 -> (搜索类先点推荐词) -> 滑动浏览 -> 返回活动页。"""
-    ui.tap_node(d, node)
+def open_search_card(d, nodes, tries=2):
+    """搜索类任务：点「搜索发现」里的任一卡片，进入商品页。
+
+    卡片可能在屏幕下方，先找当前屏，没有就往下滚一屏再找。
+    """
+    w, h = d.display_size
+    for _ in range(3):
+        cards = _search_cards(nodes)
+        if cards:
+            before = _page_signature(nodes)
+            for card in cards[:tries]:
+                title = _label(card).split()[0][:16]
+                logger.info('点击搜索发现卡片：%s', title)
+                ui.tap_node(d, card)
+                time.sleep(3.5)
+                page = ui.dump_nodes(d)
+                if _page_signature(page) != before:
+                    return True
+                logger.info('页面没变化，换一张卡片')
+            return False
+
+        logger.info('当前屏没有搜索发现卡片，向下滚动查找')
+        try:
+            human_swipe(d, int(w * 0.5), int(h * 0.72), int(w * 0.5), int(h * 0.45), wave_range=14)
+        except Exception as e:
+            logger.warning('搜索页滑动失败（忽略）: %s', e)
+        time.sleep(1.5)
+        nodes = ui.dump_nodes(d)
+    logger.warning('搜索发现里没找到可点的卡片')
+    return False
+
+
+def _tap_task_button(d, task, titles, parse_fn):
+    """点任务按钮；如果点完面板还在，说明点空/点错，重新定位同名任务再点一次。"""
+    ui.tap_node(d, task['node'])
     time.sleep(2.5)
+    if not titles:
+        return True
 
-    nodes = ui.dump_nodes(d)
-    if _is_search_page(nodes):
-        if tap_first_recommendation(d, nodes):
-            time.sleep(3)
+    panel = ui.dump_panel(d, titles)
+    if not panel:
+        return True
+
+    logger.warning('点击后仍停留在任务面板，重新定位按钮重试')
+    base = task.get('base') or task['name'].split('(')[0]
+    again = None
+    for t in (parse_fn(panel) if parse_fn else []):
+        if (t.get('base') or t['name'].split('(')[0]) == base:
+            again = t
+            break
+    if not again:
+        return False
+
+    ui.tap_node(d, again['node'])
+    time.sleep(2.5)
+    return not ui.dump_panel(d, titles)
+
+
+def run_browse_task(d, task, seconds, titles=None, parse_fn=None):
+    """执行一次浏览任务：点按钮 -> (搜索类先点卡片) -> 滑动浏览 -> 返回任务面板。"""
+    name = task.get('name', '')
+    is_search = '搜一搜' in name or '搜索' in name
+
+    if not _tap_task_button(d, task, titles, parse_fn):
+        logger.warning('任务按钮点击后仍未进入任务页，跳过本次')
+        return False
+
+    if is_search:
+        # 搜索页偶尔加载较慢，等「搜索发现」出来再点卡片
+        nodes = wait_search_page(d, timeout=8) or ui.dump_nodes(d)
+        if _is_search_page(nodes):
+            if open_search_card(d, nodes):
+                time.sleep(2)
+        else:
+            logger.warning('搜索页未出现「搜索发现」，按普通浏览处理')
+    else:
+        nodes = ui.dump_nodes(d)
+        if _is_search_page(nodes) and open_search_card(d, nodes):
+            time.sleep(2)
 
     browse_page(d, seconds)
 
+    # 先返回一次：H5 搜索页是浮层，一次就能回到面板
     d.go_back()
-    time.sleep(2)
-    if not on_activity(d, tries=1):
-        logger.info('返回后不在活动页，再退一次')
+    time.sleep(2.5)
+    if titles and ui.dump_panel(d, titles):
+        logger.info('已返回任务面板')
+        return True
+
+    # 原生搜索页（SearchActivity）叠了两层，需要再返回一次
+    if _is_search_page(ui.dump_nodes(d)):
+        logger.info('返回后仍在搜索页，再返回一次')
         d.go_back()
-        time.sleep(2)
-        if not on_activity(d, tries=2):
-            logger.warning('仍未回到活动页，重新搜索进入')
+        time.sleep(2.5)
+        if titles and ui.dump_panel(d, titles):
+            logger.info('已返回任务面板')
+            return True
+
+    if not on_activity(d, tries=2):
+        logger.warning('仍未回到活动页，重新搜索进入')
+        try:
             open_activity(d)
+        except Exception as e:
+            logger.warning('重新进入活动失败: %s', e)
+            return False
     logger.info('已返回活动页')
+    return True
 
 
 def find_task(d, titles, parse_fn, picker, max_screens=3):

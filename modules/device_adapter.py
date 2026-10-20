@@ -153,11 +153,36 @@ class DeviceAdapter:
         else:
             self._device.clear_text()
 
+    def _launcher_component(self, package_name):
+        """解析应用的启动组件。
+
+        vivo/OPPO 等国产 ROM 会拦截 monkey 和隐式的 MAIN/LAUNCHER intent，
+        导致 app_start 完全没有反应，必须用 am start -n <pkg>/<activity> 显式启动。
+        """
+        try:
+            out = self._device.shell(['cmd', 'package', 'resolve-activity', '--brief', package_name])
+            text = getattr(out, 'output', '') or str(out)
+        except Exception as e:
+            logger.debug('解析启动组件失败: %s', e)
+            return None
+        for line in reversed(text.splitlines()):
+            line = line.strip()
+            if '/' in line and line.split('/')[0] == package_name:
+                return line
+        return None
+
     def start_app(self, package_name, activity=None):
-        """启动应用"""
+        """启动应用（安卓侧优先显式启动组件）"""
         if self.device_type == 'hmdriver2':
             self._device.start_app(package_name)
+            return
+
+        comp = f'{package_name}/{activity}' if activity else self._launcher_component(package_name)
+        if comp:
+            logger.debug('显式启动应用: %s', comp)
+            self._device.shell(['am', 'start', '-n', comp])
         else:
+            logger.debug('未解析到启动组件，退回 app_start')
             self._device.app_start(package_name, activity=activity)
 
     def stop_app(self, package_name):

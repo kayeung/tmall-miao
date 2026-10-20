@@ -234,6 +234,55 @@ def parse_tasks(nodes):
     return tasks
 
 
+# vivo / OPPO 的「应用分身」选择框（com.vivo.doubleinstance 等）
+CLONE_HINTS = ('doubleinstance', 'doublespace', 'appclone')
+
+
+def is_clone_resolver(d):
+    """当前是不是「选择主应用 / 应用分身」的系统弹窗。"""
+    cur = d.app_current() or {}
+    pkg = (cur.get('package') or '').lower()
+    activity_name = (cur.get('activity') or '').lower()
+    return any(h in pkg or h in activity_name for h in CLONE_HINTS)
+
+
+def tap_app_clone_main(d, nodes=None):
+    """在分身选择框里点「主应用」。
+
+    vivo 的弹窗选项是「淘宝」和「Ⅱ·淘宝」，最稳的办法是先找到带 Ⅱ 的克隆项，
+    再去点去掉 Ⅱ· 前缀的同名项，避免误点到标题「选择要使用的应用」。
+    """
+    nodes = nodes if nodes is not None else dump_nodes(d)
+    labels = [(n['text'] or n['desc']) for n in nodes]
+
+    clone = next((l for l in labels if l.startswith('Ⅱ')), None)
+    if clone:
+        main = clone.replace('Ⅱ·', '').replace('Ⅱ', '').lstrip('·').strip()
+        for n in nodes:
+            if (n['text'] or n['desc']) == main:
+                logger.info('检测到应用分身选择框，点选主应用：%s', main)
+                tap_node(d, n)
+                return True
+
+    # 兜底：下半屏、左半边、不是标题/关闭/说明文字
+    w, h = d.display_size
+    bad = ('关闭', '前往', '设置', '选择')
+    best = None
+    for n in nodes:
+        label = n['text'] or n['desc']
+        if not label or any(b in label for b in bad) or 'Ⅱ' in label:
+            continue
+        if n['t'] < h * 0.5 or center(n)[0] > w * 0.55:
+            continue
+        if best is None or n['t'] < best['t']:
+            best = n
+    if not best:
+        return False
+    logger.info('检测到应用分身选择框，点选主应用：%s', best['text'] or best['desc'])
+    tap_node(d, best)
+    return True
+
+
 def text_of(nodes, contains):
     """返回第一个包含指定片段的文案（用于读取进度等）。"""
     for n in nodes:

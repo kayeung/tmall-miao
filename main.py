@@ -85,7 +85,7 @@ def check_version():
         return
 
     try:
-        url = 'https://gh.dpik.top/https://github.com/MonsterNone/tmall-miao/raw/refs/heads/next/version.json'
+        url = 'https://gh.dpik.top/https://github.com/kayeung/tmall-miao/raw/refs/heads/next/version.json'
         req = urllib.request.Request(url, headers={'User-Agent': 'tmall-miao'})
         with urllib.request.urlopen(req, timeout=3) as resp:
             remote_data = json.loads(resp.read().decode('utf-8'))
@@ -168,8 +168,7 @@ def select_connection():
 
 def display_menu():
     features = [
-        f"{Colors.OKCYAN}✓ 互助QQ群：533943195{Colors.ENDC}",
-        f"{Colors.OKCYAN}✓ 互助网站：https://tasku.top{Colors.ENDC}"
+        f"{Colors.OKCYAN}欢迎光临~{Colors.ENDC}",
     ]
 
     for feature in features:

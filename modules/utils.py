@@ -95,6 +95,16 @@ def _get_jd_pkg(d):
         return 'com.jingdong.app.mall'
 
 
+def _is_search_entry_page(nodes):
+    """是否是淘宝的搜索输入页（原生 SearchActivity 或 H5 搜索页）。"""
+    labels = {(n['text'] or n['desc']) for n in nodes}
+    if labels & {'历史搜索', '搜索发现', '搜索有福利'}:
+        return True
+    if any(n['rid'].endswith(':id/searchEdit') for n in nodes):
+        return True
+    return any(n['cls'] == 'EditText' and (n['text'] or n['desc']) in ('搜索', '') for n in nodes)
+
+
 def open_taobao_search(d, text):
     """重启淘宝 -> 点首页搜索栏 -> 输入关键词 -> 搜索。"""
     pkg = _get_taobao_pkg(d)
@@ -105,8 +115,21 @@ def open_taobao_search(d, text):
     d.start_app(pkg)
     logger.info('等待淘宝首页加载...')
 
-    nodes = ui.wait_for(d, lambda ns: bool(ui.find_nodes(ns, desc='搜索栏')), timeout=20,
-                        desc='首页搜索栏')
+    # 等待首页；期间可能弹出 vivo/OPPO 的「应用分身」选择框，需要点主应用
+    nodes = []
+    deadline = time.time() + 35
+    while time.time() < deadline:
+        if ui.is_clone_resolver(d):
+            logger.info('检测到应用分身选择框，选择主应用')
+            if ui.tap_app_clone_main(d):
+                time.sleep(2)
+                continue
+        nodes = ui.dump_nodes(d)
+        if ui.find_nodes(nodes, desc='搜索栏'):
+            break
+        time.sleep(1)
+    else:
+        logger.warning('等待淘宝首页超时')
 
     if d.device_type == 'hmdriver2':
         if not find_timeout_re(d, 'searchBg', 10):
@@ -119,8 +142,15 @@ def open_taobao_search(d, text):
         ui.tap_node(d, entry[0])
 
     logger.info('等待淘宝搜索页加载...')
-    page = ui.wait_for(d, lambda ns: bool(ui.find_nodes(ns, text='搜索')), timeout=12,
-                       desc='搜索页')
+    page = ui.wait_for(d, _is_search_entry_page, timeout=20, desc='搜索页')
+    if not page:
+        # 第一次可能点在启动动画/系统弹窗上，重新找搜索栏再点一次
+        logger.info('搜索页未出现，重新点击搜索栏')
+        nodes = ui.dump_nodes(d)
+        entry = ui.find_nodes(nodes, desc='搜索栏')
+        if entry:
+            ui.tap_node(d, entry[0])
+            page = ui.wait_for(d, _is_search_entry_page, timeout=15, desc='搜索页')
     if not page:
         raise RuntimeError('未能检测到淘宝搜索页')
 
@@ -128,21 +158,25 @@ def open_taobao_search(d, text):
     if d.device_type == 'hmdriver2':
         d.input_text(text)
     else:
-        edits = ui.find_nodes(page, rid=f'{pkg}:id/searchEdit')
+        edits = ui.find_nodes(page, rid=f'{pkg}:id/searchEdit') or \
+            [n for n in page if n['cls'] == 'EditText']
         if edits:
             ui.tap_node(d, edits[0])
-            time.sleep(0.5)
-            d(resourceId=f'{pkg}:id/searchEdit').set_text(text)
+            time.sleep(0.6)
+            try:
+                d(resourceId=f'{pkg}:id/searchEdit').set_text(text)
+            except Exception:
+                d(className='android.widget.EditText').set_text(text)
         else:
-            # 输入框 id 变化时退化为直接输入
-            logger.debug('未找到 searchEdit，直接输入')
+            logger.debug('未找到输入框，直接输入')
             d.send_keys(text)
     time.sleep(1.5)
 
     logger.info('点击搜索')
     page = ui.dump_nodes(d)
-    btns = [n for n in page if n['text'] == '搜索']
+    btns = [n for n in page if (n['text'] or n['desc']) == '搜索']
     if btns:
+        # 取最靠上的那个（顶部搜索按钮），避免点到中间的引导文案
         ui.tap_node(d, min(btns, key=lambda n: n['t']))
     else:
         d(text='搜索').click()
