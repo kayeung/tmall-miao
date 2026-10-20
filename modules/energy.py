@@ -1,316 +1,154 @@
-import json
+"""淘金币「双11狂享20亿」——能量任务流程（去赚能量）。
+
+活动入口：淘宝首页搜索「淘金币双11狂享20亿」-> H5 活动页
+任务面板：活动页右下角「去赚能量」-> 弹出「做任务赚能量」面板
+
+能量面板与金币面板的区别：
+- 卡片文案把「任务名(x/n) + 动作 + 奖励」挤在同一个 TextView 里，例如
+  「好物随心逛(0/10)浏览15秒+400」，所以要用 parse_energy_tasks 解析；
+- 所有卡片按钮都叫「去完成」，动作类型只能从文案判断（浏览/点击去逛/答题）；
+- 累计奖励是 5/20/50 次，入口是可点击的 View（「5次任务，最高，奖励1000」）。
+"""
 import logging
-import re
 import time
 
-import hmdriver2.driver
-from hmdriver2.driver import Driver
+from modules import activity, ui
+from modules.utils import mute
 
-from modules.utils import find_timeout_xpath, open_taobao_search, logger, find_timeout_re, json2xml, mute
+logger = logging.getLogger(__name__)
 
+BROWSE_SECONDS = {'15': 20, '5': 10}
 
-# 打开任务列表
-def open_task_list():
-    logger.info('打开任务列表，首先检测')
-    if find_timeout_re(d, '当前进度', 5):
-        logger.info('已打开')
-        return True
-    logger.info('点击打开')
-    d(text="O1CN013Lp0e21GnX8El4YEd_!!6000000000667-1-tps-256-256").click()
-    logger.info('等待任务列表')
-    if find_timeout_re(d, '当前进度', 5):
-        logger.info('任务列表打开成功')
-        return True
-    elif find_timeout_re(d, 'TB16l86YLb2gK0jSZK9XXaEgFXa-92-92.png_100x100.jpg_', 5):
-        logger.info('关闭弹窗，重新打开')
-        d(text="TB16l86YLb2gK0jSZK9XXaEgFXa-92-92.png_100x100.jpg_").click()
-        return open_task_list
-    else:
-        logger.info('未检测到任务列表')
-        return False
+MAX_ROUNDS = 120
+EXTRA_ATTEMPTS = 2
+
+ENTRY_LABEL = '去赚能量'
+CLAIM_BTNS = ('领取奖励', '去领取')
+
+# 累计奖励：(需要的完成次数, 文案关键字)
+CUMULATIVE_REWARDS = ((5, '5次任务'), (20, '20次任务'), (50, '50次任务'))
 
 
-# 检查是否在任务列表并返回
-def return_task_list():
-    logger.info('尝试返回活动页')
-    if d(text='O1CN013Lp0e21GnX8El4YEd_!!6000000000667-1-tps-256-256').exists():
-        logger.info('已在活动页')
-        return True
-    logger.info('已点击返回，检测是否成功')
-    d.go_back()
-    if not find_timeout_re(d, 'O1CN013Lp0e21GnX8El4YEd_!!6000000000667-1-tps-256-256', 5):
-        logger.info('返回失败，再次返回重试')
-        d.go_back()
-        if not find_timeout_re(d, 'O1CN013Lp0e21GnX8El4YEd_!!6000000000667-1-tps-256-256', 5):
-            return False
-    return True
+def _pick_claim(tasks):
+    for t in tasks:
+        if t['btn'] in CLAIM_BTNS:
+            return t
+    return None
 
 
-# 关闭弹窗
-def close_popup():
-    logger.info('关闭弹窗，检测3次')
-    for i in range(3):
-        r = find_timeout_re(d, '"((TB16l86YLb2gK0jSZK9XXaEgFXa.*?jpg_)|开奖即同意)"', 5)
-        if r:
-            if r[0][0] == '开奖即同意':
-                logger.info('点击开奖')
-                d.xpath('//*[@text="开奖即同意"]/../../*[last()-1]').click()
-            else:
-                logger.info('点击关闭')
-                d(text=r[0][0]).click()
-            time.sleep(1)
-        else:
-            logger.info('不需要关闭')
+def _pick_browse(tasks, attempts):
+    """挑一个能自动完成的浏览任务；跳过去支付宝/头条和答题类。"""
+    for t in tasks:
+        if t['action'] != 'browse':
+            if t['action'] in ('external', 'quiz'):
+                logger.debug('跳过任务：%s（%s）', t['name'], t['desc'])
+            continue
+        key = t['base']
+        limit = max(t['total'], 1) + EXTRA_ATTEMPTS
+        if attempts.get(key, 0) >= limit:
+            logger.info('任务「%s」已尝试 %d 次，跳过', key, attempts[key])
+            continue
+        return t
+    return None
 
 
-# 获取当前体力
-def get_coin():
-    logger.info('获取当前体力')
-    coin = int(re.findall(r'当前进度 (\d*)/2500', json.dumps(d.dump_hierarchy(), ensure_ascii=False))[0])
-    logger.info('当前共有 {} 能量'.format(coin))
-    return coin
+def _browse_wait(task):
+    seconds = task.get('seconds') or 15
+    for key, wait in BROWSE_SECONDS.items():
+        if str(seconds) == key:
+            return wait
+    return 20
 
 
-# TODO: 改为正则匹配合并搜索
-# 任务名为浏览15秒，且不是搜索
-def find_time_15_task():
-    logger.info('寻找浏览15秒任务')
-    xpath1 = "//*[@text='去浏览'][parent::*[not(.//*[contains(@text, '10个商品')]) and not(.//*[contains(@text, '搜索')])] ]"
-    xpath2 = "//*[@text='去完成'][parent::*[.//*[contains(@text, '浏览15秒')] and not(.//*[contains(@text, '搜索')])] ]"
-    if d.xpath(xpath1).exists():
-        d.xpath(xpath1).click()
-        return True
-    elif d.xpath(xpath2).exists():
-        d.xpath(xpath2).click()
-        return True
-    else:
-        return False
+def do_browse(d, task):
+    """执行一次浏览任务：点按钮 -> 按类型浏览（滑动计时）-> 返回。"""
+    logger.info('执行任务：%s（%s）', task['name'], task['desc'])
+    wait = _browse_wait(task)
+    logger.info('浏览中，停留 %d 秒', wait)
+    activity.run_browse_task(d, task['node'], wait)
 
 
-# 任务名为浏览15秒，搜索任务
-def find_time_15_search_task():
-    logger.info('寻找浏览15秒的搜索任务')
-    xpath = "//*[@text='去完成'][parent::*[.//*[contains(@text, '浏览15秒')] and .//*[contains(@text, '搜索')]] ]"
-    if d.xpath(xpath).exists():
-        d.xpath(xpath).click()
-        return True
-    else:
-        return False
+def claim_cumulative(d, nodes, claimed):
+    """领取 5/20/50 次任务的累计奖励（达标且未领过才点）。"""
+    prog = activity.progress(nodes, '当前进度')
+    for need, keyword in CUMULATIVE_REWARDS:
+        if need in claimed or prog < need:
+            continue
+        cands = [n for n in nodes if keyword in n['text'] and n['clickable']]
+        if not cands:
+            continue
+        if any('已领' in n['text'] for n in cands):
+            claimed.add(need)
+            continue
+        logger.info('领取累计奖励「%s」（当前进度 %d/50）', keyword, prog)
+        ui.tap_node(d, cands[0])
+        claimed.add(need)
+        time.sleep(1.8)
 
 
-# 10个商品任务
-def find_item_10_task():
-    logger.info('寻找浏览10个商品任务')
-    xpath = "//*[@text='去浏览'][parent::*[.//*[contains(@text, '10个商品')]] ]"
-    if d.xpath(xpath).exists():
-        d.xpath(xpath).click()
-        return True
-    else:
-        return False
+def _find_actionable(d, attempts):
+    """在整个面板里找可执行任务（自动滚动，覆盖屏幕外的任务）。"""
+    return activity.find_task_all(d, activity.ENERGY_PANEL, ui.parse_energy_tasks,
+                                  lambda tasks: _pick_browse(tasks, attempts))
 
 
-# 能量浏览任务
-def do_time_task_energy():
-    logger.info('等待进入')
-    if not find_timeout_re(d, '下滑浏览15秒', 5):
-        logger.info('未能检测到进入任务，退出')
-        exit(0)
-    n = 0
-    logger.info('进行任务')
-    while True:
-        if not d.xpath('//*[contains(@text, "下滑浏览15秒")]').exists() and not d.xpath(
-                '//*[contains(@text, "已浏览") and contains(@text, "秒")]').exists():
-            logger.info('浏览完成')
-            break
-        if n > 15:
-            logger.info('任务循环过长，终止')
-            break
-        w, h = d.display_size
-        d.swipe(x1=w / 2, y1=h - 300, x2=w / 2 + 100, y2=h - 600)
-        n += 1
-
-    if n > 15:
-        return False
-
-    logger.info('任务已完成')
-    return True
-
-
-def do_search_task_energy():
-    logger.info('等待进入')
-    if not find_timeout_xpath(d, '//*[@text="搜索发现"]/parent::*/list/listItem[1]', 10):
-        logger.info('进入任务失败')
-        return False
-    logger.info('进入任务成功，进行商品搜索')
-    d.xpath('//*[@text="搜索发现"]/parent::*/list/listItem[1]').click()
-    f = do_time_task_energy()
-    if f:  # 不成功不返回，以免多返回了
-        d.go_back()
-    return f
-
-
-# 10个商品任务
-def do_10_item_task():
-    logger.info('等待进入')
-    if not find_timeout_re(d, '已浏览商品', 5):
-        logger.info('未能检测到进入任务，退出')
-        exit(0)
-    already = []
-    time.sleep(5)
-    while True:
-        logger.info('搜索商品')
-        t = json.dumps(d.dump_hierarchy(), ensure_ascii=False, indent=2)
-        r = re.findall('"(O1.*?_580x580q75.*?)"', t)
-        if len(r) == 0:
-            logger.info('未能找到商品。退出')
-            exit(0)
-        for i in r:
-            logger.info(i)
-            if i in already:
-                continue
-            logger.info('点击浏览')
-            d(text=i).click()
-            already.append(i)
-            logger.info('等待5秒自动返回')
-            time.sleep(5)
-            if not d.xpath('//*[contains(@text, "_580x580q75")]').exists():
-                logger.info('返回')
-                d.go_back()
-            else:
-                logger.info('未进入商品，不返回')
-            time.sleep(1)
-            if not d(text='已浏览商品').exists():
-                logger.info('已完成')
-                return True
-        d.swipe_ext('up')
-
-
-def run():
-    global d
-    logger.setLevel(logging.INFO)
-    logger.info('连接设备...')
-    d = Driver()
-    logger.info('开始运行...')
-
-    start_coin = 0
-    end_coin = 0
-
-    logger.info('首先关闭音量')
+def run(d, mode='auto', keyword=activity.KEYWORD):
+    """执行能量任务，返回结果摘要字符串。"""
+    logger.info('开始运行能量任务')
     mute(d)
+    activity.enter_activity(d, mode, keyword)
 
-    open_taobao_search(d, 'https://s.click.taobao.com/izgBEml')
+    done = 0
+    claimed_tasks = 0
+    claimed_total = set()
+    attempts = {}
+    scrolled = False
 
-    logger.info('等待活动打开...')
-    if not find_timeout_re(d, 'O1CN013Lp0e21GnX8El4YEd_!!6000000000667-1-tps-256-256', 30):
-        logger.info('未检测到活动页，退出')
-        exit(0)
-    logger.info('活动已打开，开始任务')
+    for round_no in range(1, MAX_ROUNDS + 1):
+        nodes = activity.ensure_panel(d, activity.ENERGY_PANEL, activity.ENERGY_ENTRY, ENTRY_LABEL)
+        if not nodes:
+            raise RuntimeError('能量任务面板打不开，请确认活动页面是否正常')
 
-    logger.info('首先关闭弹窗')
-    if d(text='当前进度').exists():
-        logger.info('不需要关闭')
-    else:
-        close_popup()
+        tasks = ui.parse_energy_tasks(nodes)
+        logger.info('第 %d 轮：面板任务 %d 个 当前进度 %d/50', round_no, len(tasks),
+                    activity.progress(nodes, '当前进度'))
+        for t in tasks:
+            logger.debug('  · %s | %s | %s', t['name'], t['desc'] or t['action'], t['btn'])
 
-    if not open_task_list():
-        logger.error('任务列表打开失败，退出')
-        exit(0)
+        before = len(claimed_total)
+        claim_cumulative(d, nodes, claimed_total)
+        if len(claimed_total) > before:
+            continue
 
-    start_coin = get_coin()
+        claim = _pick_claim(tasks)
+        if claim:
+            try:
+                logger.info('领取任务奖励：%s', claim['name'])
+                ui.tap_node(d, claim['node'])
+                claimed_tasks += 1
+                time.sleep(2)
+            except Exception as e:
+                logger.warning('领取奖励失败: %s', e)
+            continue
 
-    while True:
-        no_time_15_task_flag = False
-        no_time_15_search_task_flag = False
-        no_item_10_task = False
-
-        if not open_task_list():
-            logger.error('任务列表打开失败，退出')
-            exit(0)
-
-        if find_time_15_task():
-            logger.info('进行浏览任务')
-            if not do_time_task_energy():
-                logger.info('浏览任务失败')
-            else:
-                logger.info('浏览任务成功')
-
-            if not return_task_list():
-                logger.info('返回任务列表失败，请重新运行')
-                exit(0)
-            else:
-                logger.info('返回成功，进行下一个任务')
+        task = _pick_browse(tasks, attempts)
+        if not task:
+            logger.info('没有可自动完成的浏览任务')
+            if not scrolled:
+                _scroll_panel(d)
+                scrolled = True
                 continue
-        else:
-            logger.info('没有浏览15秒任务')
-            no_time_15_task_flag = True
-
-        if find_time_15_search_task():
-            logger.info('进行搜索任务')
-            if not do_search_task_energy():
-                logger.info('搜索任务失败')
-            else:
-                logger.info('搜索任务成功')
-
-            if not return_task_list():
-                logger.info('返回任务列表失败，请重新运行')
-                exit(0)
-            else:
-                logger.info('返回成功，进行下一个任务')
-                continue
-        else:
-            logger.info('没有搜索任务')
-            no_time_15_search_task_flag = True
-
-        if find_item_10_task():
-            logger.info('进行浏览10次商品任务')
-            if not do_10_item_task():
-                logger.info('浏览10次商品失败')
-            else:
-                logger.info('浏览10次商品成功')
-
-            if not return_task_list():
-                logger.info('返回任务列表失败，请重新运行')
-                exit(0)
-            else:
-                logger.info('返回成功，进行下一个任务')
-                continue
-        else:
-            logger.info('没有浏览10次任务')
-            no_item_10_task = True
-
-        if no_time_15_task_flag and no_time_15_search_task_flag and no_item_10_task:
-            logger.info('没有任务了')
             break
 
-    end_coin = get_coin()
-    logger.info('本次运行共获得 {} 能量'.format(end_coin - start_coin))
+        scrolled = False
+        attempts[task['base']] = attempts.get(task['base'], 0) + 1
+        try:
+            do_browse(d, task)
+            done += 1
+        except Exception as e:
+            logger.warning('任务「%s」执行失败: %s', task['base'], e)
+            time.sleep(2)
 
-    logger.info('运行结束')
-
-    return end_coin - start_coin
-
-
-hmdriver2.driver.logger.disabled = True
-d = 0
-
-if __name__ == '__main__':
-    logger.setLevel(logging.DEBUG)
-    logger.info('连接设备...')
-    d = Driver()
-    logger.info('开始运行...')
-
-    TRY_RUN = False
-    # TRY_RUN = True
-
-    if not TRY_RUN:
-        run()
-    else:  # TRYRUN
-        # do_time_task_energy()
-        # do_search_task()
-        # get_coin()
-        # logger.info(find_time_15_task())
-        # logger.info(find_time_15_search_task())
-        # return_task_list()
-        # logger.info(find_item_10_task())
-        # do_10_item_task()
-        close_popup()
+    logger.info('能量任务执行完毕：共完成 %d 次浏览任务，领取 %d 次任务奖励、%d 个累计奖励',
+                done, claimed_tasks, len(claimed_total))
+    return f'{done}次浏览/{len(claimed_total)}个累计奖'

@@ -68,6 +68,8 @@ a = Analysis(
         'deprecated',
         'six',
         'modules.device_adapter',
+        'modules.ui',
+        'modules.activity',
         'modules.taobao',
         'modules.energy',
         'modules.jd_hb',

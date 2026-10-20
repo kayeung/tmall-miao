@@ -1,265 +1,177 @@
-import json
+"""淘金币「双11狂享20亿」——金币任务流程（去赚金币）。
+
+活动入口：淘宝首页搜索「淘金币双11狂享20亿」-> H5 活动页
+任务面板：活动页左下角「去赚金币」-> 弹出「赚金币抵钱」面板
+
+和 618 版最大的区别：
+- 活动页是 H5（Themis 容器），主页面用 canvas 渲染，拿不到文案，只能用相对坐标点入口；
+- 任务面板是正常 DOM，用「文案 + 几何位置」解析每张任务卡片；
+- 任务有次数（0/3、0/5），做完一次卡片不会消失，需要重复直到次数满；
+- 需要跳转支付宝/头条的任务跳过。
+"""
 import logging
 import re
 import time
 
-from modules.utils import open_taobao_search, find_timeout_xpath, logger, find_timeout_re, mute
+from modules import activity, ui
+from modules.utils import mute
+
+logger = logging.getLogger(__name__)
+
+# 浏览类任务停留秒数（活动要求 15s/5s，页面加载和倒计时都有延迟，留足余量）
+BROWSE_SECONDS = {'15': 20, '5': 10}
+
+MAX_ROUNDS = 80          # 总轮数上限，防止死循环
+EXTRA_ATTEMPTS = 2       # 每个任务在所需次数之外允许多试几次
+
+CLAIM_BTNS = ('领取奖励', '去领取')
+ENTRY_LABEL = '去赚金币'
 
 
-# 检查是否在任务列表并返回
-def return_task_list(d):
-    logger.info('尝试返回任务列表')
-    if d(text='累计任务奖励').exists():
-        logger.info('已在任务列表')
-        return True
-    logger.info('已点击返回，检测是否成功')
-    d.go_back()
-    if not find_timeout_re(d, '累计任务奖励', 5):
-        logger.info('返回失败，再次返回重试')
-        d.go_back()
-        if not find_timeout_re(d, '累计任务奖励', 5):
-            return False
-    return True
+def _panel_open(nodes):
+    return bool(ui.parse_tasks(nodes))
 
 
-# 获取当前体力
-def get_coin(d):
-    logger.info('获取当前体力')
-    j = d.dump_hierarchy()
-    coin = re.findall(r'剩余 (\d*) 体力', json.dumps(j, ensure_ascii=False))[0]
-    coin = int(coin)
-    logger.info('当前共有 {} 体力'.format(coin))
-    return coin
+def _required_count(name):
+    """从 '发现精选好物(0/3)' 里取出总次数 3。"""
+    m = re.search(r'\((\d+)\s*/\s*(\d+)\)', name)
+    return int(m.group(2)) if m else 1
 
 
-# 任务名为浏览15秒
-def find_time_15_task(d):
-    logger.info('寻找浏览15秒任务')
-    xpath = "//*[@text='去完成'][..//*[contains(@text, '浏览15')]]"
-    if d.xpath_exists(xpath):
-        d.xpath(xpath).click()
-        return True
-    else:
-        return False
+def _task_key(name):
+    """去掉 (0/3) 这种进度后缀，作为任务的稳定标识。"""
+    key = re.sub(r'\(\s*\d+\s*/\s*\d+\s*\)', '', name).strip()
+    return key or '未知任务'
 
 
-# 任务名为浏览15秒，搜索任务
-def find_time_15_search_task(d):
-    logger.info('寻找浏览15秒的搜索任务')
-    xpath = "//*[@text='去完成'][parent::*[.//*[contains(@text, '浏览15秒')] and .//*[contains(@text, '搜一搜')]] ]"
-    if d.xpath_exists(xpath):
-        d.xpath(xpath).click()
-        return True
-    else:
-        return False
+def _pick_claim(tasks):
+    for t in tasks:
+        if t['btn'] in CLAIM_BTNS:
+            return t
+    return None
 
 
-# 任务名为浏览5秒，且不是搜索
-def find_time_5_task(d):
-    logger.info('寻找浏览5秒任务')
-    xpath = "//*[@text='去完成'][..//*[contains(@text, '浏览5秒')]]"
-    if d.xpath_exists(xpath):
-        d.xpath(xpath).click()
-        return True
-    else:
-        return False
+def _pick_browse(tasks, attempts):
+    """挑一个能自动完成的浏览任务（跳过需要跳转外部 App 的）。"""
+    for t in tasks:
+        if t['btn'] != '去完成':
+            continue
+        if '浏览' not in t['desc']:
+            logger.debug('跳过非浏览任务：%s（%s）', t['name'], t['desc'])
+            continue
+        key = _task_key(t['name'])
+        limit = _required_count(t['name']) + EXTRA_ATTEMPTS
+        if attempts.get(key, 0) >= limit:
+            logger.info('任务「%s」已尝试 %d 次，跳过', key, attempts[key])
+            continue
+        return t
+    return None
 
 
-def do_task(d):
-    """执行浏览/搜索任务，自动判断页面标识"""
-    logger.info('等待进入任务页面')
-
-    result = find_timeout_re(d, '搜索发现|310x310xzq90|浏览15[秒s]"[\s\S]+?得', 10)
-    logger.debug(result)
-    if not result:
-        logger.info('进入任务失败，未检测到任何标识')
-        return False
-
-    matched = result[0]
-    if matched == '搜索发现':
-        logger.info('检测到搜索标识，进行搜索任务')
-        if d.device_type == 'hmdriver2':
-            d.xpath('//*[@text="搜索发现"]/parent::*/list/listItem[1]').click()
-            if not find_timeout_re(d, '310x310xzq90', 10):
-                logger.info('搜索任务失败，未检测到310x310xzq90标识')
-                return False
-            d.xpath('//*[contains(@text, "310x310xzq90")]').click()
-        else:
-            d.xpath('//*[@text="搜索发现"]/following-sibling::*[1]/*[1]').click()
-            if not d.xpath('//*[contains(@text, "310x310xzq90")]').click_exists(timeout=10):
-                logger.info('搜索任务失败，未检测到310x310xzq90标识')
-                return False
-    elif '浏览15' in matched:
-        logger.info('检测到沉浸浏览标识，进行浏览任务')
-    else:
-        logger.info('检测到浏览标识，进行浏览任务')
-        d.xpath('//*[contains(@text, "310x310xzq90")]').click()
-
-    logger.info('浏览中 等待18秒返回')
-    time.sleep(18)
-    logger.info('返回')
-    d.go_back()
-    if matched == '搜索发现':
-        time.sleep(1)
-        logger.info('再次返回')
-        d.go_back()
-    logger.info('任务已完成')
-    return True
+def _browse_wait(desc):
+    for key, seconds in BROWSE_SECONDS.items():
+        if key in desc:
+            return seconds
+    return 20
 
 
-def run(d):
+def do_browse(d, task):
+    """执行一次浏览任务：点按钮 -> 按类型浏览（滑动计时）-> 返回。"""
+    logger.info('执行任务：%s（%s）', task['name'], task['desc'])
+    wait = _browse_wait(task['desc'])
+    logger.info('浏览中，停留 %d 秒', wait)
+    activity.run_browse_task(d, task['node'], wait)
 
-    logger.info('开始运行...')
 
-    startCoin = 0
-    endCoin = 0
+def do_claim(d, task):
+    logger.info('领取任务奖励：%s', task['name'])
+    ui.tap_node(d, task['node'])
+    time.sleep(2.5)
 
-    logger.info('首先关闭音量')
+
+def claim_cumulative(d, nodes):
+    """领取 3/10/20 次任务的累计奖励（达标后按钮文案变成「立即领取」）。"""
+    claimed = 0
+    for btn in ui.find_nodes(nodes, text='立即领取'):
+        logger.info('领取累计奖励（当前进度 %s）', activity.progress(nodes))
+        ui.tap_node(d, btn)
+        time.sleep(1.8)
+        claimed += 1
+    return claimed
+
+
+def _panel_titles():
+    return activity.COIN_PANEL
+
+
+def _find_actionable(d, attempts):
+    """在整个面板里找可执行任务（自动滚动，覆盖屏幕外的任务）。"""
+    return activity.find_task_all(d, _panel_titles(), ui.parse_tasks,
+                                  lambda tasks: _pick_browse(tasks, attempts))
+
+
+def run(d, mode='auto', keyword=activity.KEYWORD):
+    """执行金币任务，返回结果摘要字符串。"""
+    logger.info('开始运行金币任务')
     mute(d)
+    activity.enter_activity(d, mode, keyword)
 
-    # 选择启动模式
-    print()
-    print("╔══════════════════════════════════════════╗")
-    print("║          请选择启动模式                  ║")
-    print("╠══════════════════════════════════════════╣")
-    print("║ 1. 自动打开活动（默认）                  ║")
-    print("║ 2. 手动打开活动（适用于淘宝分身）        ║")
-    print("╚══════════════════════════════════════════╝")
-    while True:
-        mode = input("请选择 (1-2，默认1): ").strip()
-        if mode == '' or mode == '1':
-            logger.info('使用自动模式')
-            open_taobao_search(d, '618赢20亿')
-            logger.info('等待活动打开...')
-            if not find_timeout_re(d, '赚体力', 30):
-                logger.info('未检测到活动页，退出')
-                raise RuntimeError('未检测到活动页')
-            logger.info('活动已打开')
-            break
-        elif mode == '2':
-            logger.info('使用手动模式，请手动打开淘宝分身并进入活动页面')
-            input("请手动打开淘宝分身并进入活动页面，完成后按回车继续...")
-            logger.info('等待检测活动页...')
-            if not find_timeout_re(d, '赚体力', 10):
-                logger.info('未检测到活动页，退出')
-                raise RuntimeError('未检测到活动页，请确认已进入活动页面')
-            logger.info('检测到活动页面')
-            break
-        else:
-            print("无效选择，请输入1或2")
+    done = 0
+    claimed = 0
+    attempts = {}
 
-    logger.info('开始任务')
+    for round_no in range(1, MAX_ROUNDS + 1):
+        nodes = activity.ensure_panel(d, activity.COIN_PANEL, activity.COIN_ENTRY, ENTRY_LABEL)
+        if not nodes:
+            raise RuntimeError('金币任务面板打不开，请确认活动页面是否正常')
 
-    startCoin = get_coin(d)
+        tasks = ui.parse_tasks(nodes)
+        logger.info('第 %d 轮：面板任务 %d 个 完成进度 %d', round_no, len(tasks),
+                    activity.progress(nodes))
+        for t in tasks:
+            logger.debug('  · %s | %s | %s', t['name'], t['desc'], t['btn'])
 
-    logger.info('打开任务列表')
-    time.sleep(5)
-    d(text="赚体力").click()
-    logger.info('等待任务列表')
-    if find_timeout_re(d, '累计任务奖励', 10):
-        logger.info('任务列表打开成功')
-    else:
-        logger.info('任务列表打开失败，退出')
-        return False
+        # 累计奖励（3/10/20 次）先领，避免奖励入口被挤掉
+        n_claim = claim_cumulative(d, nodes)
+        if n_claim:
+            claimed += n_claim
+            continue
 
-    # 任务统计
-    done_count = 0
+        claim = _pick_claim(tasks)
+        if claim:
+            try:
+                do_claim(d, claim)
+                claimed += 1
+            except Exception as e:
+                logger.warning('领取奖励失败: %s', e)
+            continue
 
-    while True:
-        no_time_15_task_flag = False
-        no_time_5_task_flag = False
-
-        logger.info('等待任务列表刷新')
-        time.sleep(5)
-
-        if find_time_15_task(d):
-            logger.info('进行浏览任务')
-            if not do_task(d):
-                logger.info('浏览任务失败')
-            else:
-                done_count += 1
-                logger.info('浏览任务成功')
-
-            time.sleep(3)
-
-            if not return_task_list(d):
-                logger.info('返回任务列表失败，请重新运行')
-                raise RuntimeError('返回任务列表失败')
-            else:
-                logger.info('返回成功，进行下一个任务')
-                continue
-        else:
-            logger.info('没有浏览15秒任务')
-            no_time_15_task_flag = True
-
-        # if find_time_15_search_task(d):
-        #     logger.info('进行搜索任务')
-        #     if not do_task(d):
-        #         logger.info('搜索任务失败')
-        #     else:
-        #         done_count += 1
-        #         logger.info('搜索任务成功')
-        #         d.go_back()
-
-        #     if not return_task_list(d):
-        #         logger.info('返回任务列表失败，请重新运行')
-        #         raise RuntimeError('返回任务列表失败')
-        #     else:
-        #         logger.info('返回成功，进行下一个任务')
-        #         continue
-        # else:
-        #     logger.info('没有搜索任务')
-        #     no_time_15_search_task_flag = True
-
-        if find_time_5_task(d):
-            logger.info('进行浏览5秒任务，等待检测到浏览5秒字样且离开任务列表')
-            # 等待检测到"浏览5秒"字样且不在任务列表
-            start_time = time.time()
-            detected = False
-            while time.time() - start_time < 15:  # 最多等待15秒
-                # 检查是否在任务列表（有累计任务奖励字样）
-                if d(text='累计任务奖励').exists():
-                    logger.debug('仍在任务列表，继续等待')
-                    time.sleep(0.5)
-                    continue
-                # 检查页面是否出现"浏览5秒"字样
-                if d.xpath('//*[contains(@text, "浏览5秒") or contains(@text, "任务已完成")]').exists():
-                    logger.info('检测到浏览5秒字样且已离开任务列表，开始计时8秒')
-                    detected = True
-                    break
-                time.sleep(0.5)
-
-            if detected:
-                time.sleep(8)
-                logger.info('8秒等待完成，准备返回')
-            else:
-                logger.warning('未检测到浏览5秒字样，超时返回')
-
-            done_count += 1
-
-            if not return_task_list(d):
-                logger.info('返回任务列表失败，请重新运行')
-                raise RuntimeError('返回任务列表失败')
-            else:
-                logger.info('返回成功，进行下一个任务')
-                continue
-        else:
-            logger.info('没有浏览5秒任务')
-            no_time_5_task_flag = True
-
-        if no_time_15_task_flag and no_time_5_task_flag:
-            logger.info('没有任务了')
+        # 当前屏没有可执行任务时，滚动面板继续找（下方还有任务）
+        task, nodes = _find_actionable(d, attempts)
+        if not task:
+            # 面板任务会动态刷新，关掉重开再识别一次
+            logger.info('面板内没有可执行任务，关闭重开刷新任务列表')
+            activity.close_panel(d)
+            nodes = activity.ensure_panel(d, activity.COIN_PANEL, activity.COIN_ENTRY, ENTRY_LABEL)
+            task, nodes = _find_actionable(d, attempts) if nodes else (None, None)
+        if not task:
+            logger.info('没有可自动完成的浏览任务')
             break
 
-    logger.info('领取累计任务奖励')
-    for i in find_timeout_re(d, '立即领取', 1):
-        logger.info('领取')
-        d.click_if_exists(text='立即领取')
-        time.sleep(0.5)
+        key = _task_key(task['name'])
+        attempts[key] = attempts.get(key, 0) + 1
+        try:
+            do_browse(d, task)
+            done += 1
+        except Exception as e:
+            logger.warning('任务「%s」执行失败: %s', key, e)
+            time.sleep(2)
 
-    endCoin = get_coin(d)
-    logger.info('本次运行共完成 {} 任务，获得 {} 体力'.format(done_count, endCoin - startCoin))
+    # 收尾：再领一次累计奖励
+    try:
+        claimed += claim_cumulative(d, ui.dump_panel(d, activity.COIN_PANEL) or [])
+    except Exception as e:
+        logger.warning('累计奖励领取异常: %s', e)
 
-    logger.info('运行结束')
-
-    return endCoin - startCoin
+    logger.info('金币任务执行完毕：共完成 %d 次浏览任务，领取 %d 次奖励', done, claimed)
+    return f'{done}次浏览/{claimed}次领奖'

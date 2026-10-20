@@ -51,8 +51,10 @@ class DeviceAdapter:
             self._device = Driver()
         elif self.device_type == 'uiautomator2':
             import uiautomator2 as u2
-            # 设置HTTP超时（模块级常量）
-            u2.HTTP_TIMEOUT = 20
+            # 注意：uiautomator2.base 在导入时就把 HTTP_TIMEOUT 常量绑进了自己的命名空间，
+            # 改 u2.HTTP_TIMEOUT 不会生效（仍是 300s），必须改 base 模块里的同名变量。
+            import uiautomator2.base as _u2_base
+            _u2_base.HTTP_TIMEOUT = 20
             if self.serial:
                 # serial 可以是 IP:PORT（无线）或设备序列号（USB）
                 logger.info(f'连接安卓设备: {self.serial}')
@@ -187,6 +189,22 @@ class DeviceAdapter:
             # uiautomator2 返回XML，缓存原始XML并转为兼容JSON
             self._last_xml = self._device.dump_hierarchy()
             return self._xml_to_json(self._last_xml)
+
+    def dump_xml(self):
+        """返回当前UI层级的XML字符串（鸿蒙侧由JSON转换，供统一解析使用）"""
+        if self.device_type == 'hmdriver2':
+            return self.json2xml(self.dump_hierarchy())
+        self._last_xml = self._device.dump_hierarchy()
+        return self._last_xml
+
+    def app_current(self):
+        """当前前台应用信息 {'package': ..., 'activity': ...}"""
+        if self.device_type == 'hmdriver2':
+            try:
+                return {'package': self._device.shell('aa dump -l').output.strip()}
+            except Exception:
+                return {}
+        return self._device.app_current()
 
     # XML属性名到hmdriver2 JSON key的映射
     _XML_ATTR_MAP = {

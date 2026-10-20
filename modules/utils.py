@@ -5,6 +5,8 @@ import random
 import re
 import time
 
+from modules import ui
+
 
 # 生成拟人波动轨迹点（公共逻辑）
 def _generate_swipe_points(x1, y1, x2, y2, wave_range=30):
@@ -65,15 +67,15 @@ def find_timeout_xpath(d, xpath_str, timeout):
 
 # 通过正则寻找，找到返回[result]，找不到返回[]
 def find_timeout_re(d, reg, timeout):
+    pattern = re.compile(reg)
     for i in range(timeout):
-        t = d.dump_hierarchy()
-        t = json.dumps(t, ensure_ascii=False)
-        r = re.findall(reg, t)
-        if not r and i != timeout:
-            logger.debug('搜索 {} 次'.format(i + 1))
+        t = json.dumps(d.dump_hierarchy(), ensure_ascii=False)
+        r = pattern.findall(t)
+        if r:
+            return r
+        logger.debug('搜索 %s 次', i + 1)
+        if i < timeout - 1:
             time.sleep(0.8)
-            continue
-        return r
     return []
 
 
@@ -94,6 +96,7 @@ def _get_jd_pkg(d):
 
 
 def open_taobao_search(d, text):
+    """重启淘宝 -> 点首页搜索栏 -> 输入关键词 -> 搜索。"""
     pkg = _get_taobao_pkg(d)
     logger.info('首先关闭淘宝App')
     d.stop_app(pkg)
@@ -102,31 +105,51 @@ def open_taobao_search(d, text):
     d.start_app(pkg)
     logger.info('等待淘宝首页加载...')
 
-    # 检测首页并点击搜索入口
+    nodes = ui.wait_for(d, lambda ns: bool(ui.find_nodes(ns, desc='搜索栏')), timeout=20,
+                        desc='首页搜索栏')
+
     if d.device_type == 'hmdriver2':
         if not find_timeout_re(d, 'searchBg', 10):
             raise RuntimeError('未能检测到淘宝首页')
         d.xpath('//*[@id="searchBg"]/Stack[3]').click()
-    elif d.device_type == 'uiautomator2':
-        # 安卓淘宝可能没有searchBg，尝试直接找搜索框
-        if not d.xpath('//*[@content-desc="搜索栏"]').click_exists(timeout=10):
-            raise RuntimeError('未能检测到淘宝首页')
     else:
-        raise RuntimeError('未能检测到淘宝首页')
+        entry = ui.find_nodes(nodes or [], desc='搜索栏')
+        if not entry:
+            raise RuntimeError('未能检测到淘宝首页搜索栏')
+        ui.tap_node(d, entry[0])
 
     logger.info('等待淘宝搜索页加载...')
-    if not find_timeout_re(d, '"搜索"', 10):
+    page = ui.wait_for(d, lambda ns: bool(ui.find_nodes(ns, text='搜索')), timeout=12,
+                       desc='搜索页')
+    if not page:
         raise RuntimeError('未能检测到淘宝搜索页')
-    logger.info('进入活动')
+
+    logger.info('输入搜索词：%s', text)
     if d.device_type == 'hmdriver2':
         d.input_text(text)
-    elif d.device_type == 'uiautomator2':
-        d(resourceId='com.taobao.taobao:id/searchEdit').set_text(text)
+    else:
+        edits = ui.find_nodes(page, rid=f'{pkg}:id/searchEdit')
+        if edits:
+            ui.tap_node(d, edits[0])
+            time.sleep(0.5)
+            d(resourceId=f'{pkg}:id/searchEdit').set_text(text)
+        else:
+            # 输入框 id 变化时退化为直接输入
+            logger.debug('未找到 searchEdit，直接输入')
+            d.send_keys(text)
+    time.sleep(1.5)
 
-    d(text='搜索').click()
+    logger.info('点击搜索')
+    page = ui.dump_nodes(d)
+    btns = [n for n in page if n['text'] == '搜索']
+    if btns:
+        ui.tap_node(d, min(btns, key=lambda n: n['t']))
+    else:
+        d(text='搜索').click()
 
 
 def open_jd_search(d, text):
+    """京东搜索入口（保持原有实现，当前未启用）。"""
     pkg = _get_jd_pkg(d)
     logger.info('首先关闭京东App')
     d.stop_app(pkg)
