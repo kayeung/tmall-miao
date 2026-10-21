@@ -95,31 +95,42 @@ def dump_nodes(d):
     return flatten(dump_tree(d))
 
 
-def _find_panel(node, titles=PANEL_TITLES, require_title=False, min_height=0):
-    """自底向上找「包含面板标题 + 至少一个任务按钮」的最小子树。
-
-    require_title=True 时只认标题匹配的子树，并且要求子树高度超过 min_height：
-    面板标题和关闭按钮常被放在一个只有几十像素高的标题容器里，
-    不加高度限制会只圈到标题栏，拿不到下面的任务列表。
-    """
-    for child in node.get('children', []):
-        found = _find_panel(child, titles, require_title, min_height)
-        if found is not None:
-            return found
-
+def _collect_panels(node, titles, min_height, out):
+    """收集所有「含面板标题、且高度够」的子树（从下往上都会收）。"""
     flat = flatten(node)
-    if not flat:
-        return None
-    has_title = any(n['text'] in titles for n in flat)
-    btn_count = sum(1 for n in flat if n['text'] in BTN_TEXTS)
-    if require_title:
-        if not has_title:
+    if flat:
+        if any(n['text'] in titles for n in flat):
+            top = min(n['t'] for n in flat)
+            bottom = max(n['b'] for n in flat)
+            if bottom - top >= min_height:
+                out.append(flat)
+    for child in node.get('children', []):
+        _collect_panels(child, titles, min_height, out)
+
+
+def _find_panel(node, titles=PANEL_TITLES, require_title=False, min_height=0):
+    """找任务面板的节点集合。
+
+    新版金币面板里，「额外得金币」列表和底部「更多金币等你赚」是兄弟容器，
+    取最小的那个会漏掉下面一半，所以这里取**最大的、且不含页面入口按钮**的容器：
+    含「去赚金币/去赚能量」说明已经圈到了整个活动页，要排除。
+    """
+    if not require_title:
+        flat = flatten(node)
+        if not flat:
             return None
-        top = min(n['t'] for n in flat)
-        bottom = max(n['b'] for n in flat)
-        return flat if (bottom - top) >= min_height else None
-    # 标题整体改版时才退化为「至少两个任务按钮」
-    return flat if btn_count >= 2 else None
+        btn_count = sum(1 for n in flat if n['text'] in BTN_TEXTS)
+        return flat if btn_count >= 2 else None
+
+    cands = []
+    _collect_panels(node, titles, min_height, cands)
+    if not cands:
+        return None
+
+    page_entry = ('去赚金币', '去赚能量')
+    inner = [c for c in cands
+             if not any(n['text'] in page_entry for n in c)]
+    return max(inner or cands, key=len)
 
 
 def _page_has_known_title(tree):
