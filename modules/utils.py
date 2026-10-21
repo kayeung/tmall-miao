@@ -105,54 +105,50 @@ def _is_search_entry_page(nodes):
     return any(n['cls'] == 'EditText' and (n['text'] or n['desc']) in ('搜索', '') for n in nodes)
 
 
-def open_taobao_search(d, text):
-    """重启淘宝 -> 点首页搜索栏 -> 输入关键词 -> 搜索。"""
-    pkg = _get_taobao_pkg(d)
-    logger.info('首先关闭淘宝App')
-    d.stop_app(pkg)
-    time.sleep(3)
-    logger.info('打开淘宝App')
-    d.start_app(pkg)
-    logger.info('等待淘宝首页加载...')
-
-    # 等待首页；期间可能弹出 vivo/OPPO 的「应用分身」选择框，需要点主应用
-    nodes = []
-    deadline = time.time() + 35
+def _wait_taobao_home(d, timeout=35):
+    """等待淘宝首页（顺带处理 vivo/OPPO 的分身选择框）。"""
+    deadline = time.time() + timeout
     while time.time() < deadline:
         if ui.is_clone_resolver(d):
-            logger.info('检测到应用分身选择框，选择主应用')
-            if ui.tap_app_clone_main(d):
+            logger.info('检测到应用分身选择框，选择%s', '分身' if ui.TAOBAO_IS_CLONE else '主应用')
+            if ui.tap_app_instance(d, clone=ui.TAOBAO_IS_CLONE):
                 time.sleep(2)
                 continue
         nodes = ui.dump_nodes(d)
         if ui.find_nodes(nodes, desc='搜索栏'):
-            break
+            return nodes
         time.sleep(1)
-    else:
-        logger.warning('等待淘宝首页超时')
+    logger.warning('等待淘宝首页超时')
+    return None
 
+
+def _open_search_page(d, nodes):
+    """在首页点搜索栏，进入搜索输入页。"""
     if d.device_type == 'hmdriver2':
         if not find_timeout_re(d, 'searchBg', 10):
-            raise RuntimeError('未能检测到淘宝首页')
+            return False
         d.xpath('//*[@id="searchBg"]/Stack[3]').click()
     else:
         entry = ui.find_nodes(nodes or [], desc='搜索栏')
         if not entry:
-            raise RuntimeError('未能检测到淘宝首页搜索栏')
+            return False
         ui.tap_node(d, entry[0])
+    return True
 
+
+def _submit_search(d, text):
+    """在搜索页输入关键词并提交。"""
+    pkg = _get_taobao_pkg(d)
     logger.info('等待淘宝搜索页加载...')
     page = ui.wait_for(d, _is_search_entry_page, timeout=20, desc='搜索页')
     if not page:
-        # 第一次可能点在启动动画/系统弹窗上，重新找搜索栏再点一次
+        # 第一次可能点在启动动画/弹窗上，重新找搜索栏再点一次
         logger.info('搜索页未出现，重新点击搜索栏')
         nodes = ui.dump_nodes(d)
-        entry = ui.find_nodes(nodes, desc='搜索栏')
-        if entry:
-            ui.tap_node(d, entry[0])
+        if _open_search_page(d, nodes):
             page = ui.wait_for(d, _is_search_entry_page, timeout=15, desc='搜索页')
     if not page:
-        raise RuntimeError('未能检测到淘宝搜索页')
+        return False
 
     logger.info('输入搜索词：%s', text)
     if d.device_type == 'hmdriver2':
@@ -180,6 +176,40 @@ def open_taobao_search(d, text):
         ui.tap_node(d, min(btns, key=lambda n: n['t']))
     else:
         d(text='搜索').click()
+    return True
+
+
+def open_taobao_search(d, text):
+    """重启淘宝 -> 点首页搜索栏 -> 输入关键词 -> 搜索。"""
+    pkg = _get_taobao_pkg(d)
+    logger.info('首先关闭淘宝App')
+    d.stop_app(pkg, user=ui.TAOBAO_USER)
+    time.sleep(3)
+    logger.info('打开淘宝App')
+    d.start_app(pkg, user=ui.TAOBAO_USER)
+    logger.info('等待淘宝首页加载...')
+
+    nodes = _wait_taobao_home(d)
+    if not nodes:
+        raise RuntimeError('未能检测到淘宝首页搜索栏')
+    if not _open_search_page(d, nodes):
+        raise RuntimeError('未能点击淘宝首页搜索栏')
+    if not _submit_search(d, text):
+        raise RuntimeError('未能检测到淘宝搜索页')
+
+
+def search_in_taobao(d, text, backs=4):
+    """不重启 App，只在淘宝内返回首页后重新搜索（避免杀进程回桌面）。"""
+    for i in range(backs):
+        nodes = ui.dump_nodes(d)
+        if ui.find_nodes(nodes, desc='搜索栏'):
+            if not _open_search_page(d, nodes):
+                return False
+            return _submit_search(d, text)
+        logger.info('返回淘宝首页 (%d/%d)', i + 1, backs)
+        d.go_back()
+        time.sleep(2)
+    return False
 
 
 def open_jd_search(d, text):

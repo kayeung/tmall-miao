@@ -57,8 +57,10 @@ def _pick_browse(tasks, attempts):
         if t['btn'] != '去完成':
             continue
         if '浏览' not in t['desc']:
-            logger.debug('跳过非浏览任务：%s（%s）', t['name'], t['desc'])
-            continue
+            # 新版面板部分浏览任务没有描述文案，按任务名兜底判断
+            if not (not t['desc'] and ('逛' in t['name'] or '浏览' in t['name'])):
+                logger.debug('跳过非浏览任务：%s（%s）', t['name'], t['desc'])
+                continue
         key = _task_key(t['name'])
         limit = _required_count(t['name']) + EXTRA_ATTEMPTS
         if attempts.get(key, 0) >= limit:
@@ -110,6 +112,81 @@ def _find_actionable(d, attempts):
                                   lambda tasks: _pick_browse(tasks, attempts))
 
 
+def _is_coin_v2(nodes):
+    """新版金币面板（今日速赚淘金币：额外得金币 + 更多金币等你赚）。"""
+    return any('更多金币等你赚' in (n['text'] or '') for n in nodes)
+
+
+def ask_extra_coins():
+    """询问是否先执行顶部「额外得金币」任务。"""
+    print()
+    print('╔══════════════════════════════════════════╗')
+    print('║  检测到「额外得金币」任务                ║')
+    print('╠══════════════════════════════════════════╣')
+    print('║ 1. 先执行额外得金币任务（默认）          ║')
+    print('║ 2. 跳过，只做下方「更多金币等你赚」      ║')
+    print('╚══════════════════════════════════════════╝')
+    while True:
+        choice = input('请选择 (1-2，默认1): ').strip()
+        if choice in ('', '1'):
+            return True
+        if choice == '2':
+            return False
+        print('无效选择，请输入1或2')
+
+
+def do_extra_rows(d, max_tasks=8):
+    """执行顶部「额外得金币」里的浏览类任务（点标题进入，回来徽章会变√）。"""
+    done = 0
+    attempts = {}
+    for _ in range(max_tasks):
+        nodes = activity.ensure_panel(d, activity.COIN_PANEL, activity.COIN_ENTRY, ENTRY_LABEL)
+        if not nodes:
+            break
+        rows = [r for r in ui.parse_coin_rows(nodes) if r['action'] == 'browse']
+        if not rows:
+            logger.info('额外得金币里没有可执行的浏览任务了')
+            break
+
+        row = None
+        for r in rows:
+            key = r['name']
+            if attempts.get(key, 0) < 2:
+                row = r
+                break
+        if not row:
+            break
+
+        attempts[row['name']] = attempts.get(row['name'], 0) + 1
+        logger.info('额外任务：%s（%s）', row['name'], row['desc'])
+        ui.tap_node(d, row['node'])
+        time.sleep(2.5)
+        activity.browse_page(d, (row['seconds'] or 15) + 5)
+
+        d.go_back()
+        time.sleep(2.5)
+        if not activity.on_activity(d, tries=1):
+            d.go_back()
+            time.sleep(2)
+        done += 1
+    return done
+
+
+def expand_more_coins(d):
+    """展开「更多金币等你赚」并向下滚动，露出完整任务清单。"""
+    nodes = activity.ensure_panel(d, activity.COIN_PANEL, activity.COIN_ENTRY, ENTRY_LABEL) or []
+    if not any('更多金币等你赚' in (n['text'] or '') for n in nodes):
+        return False
+    exp = [n for n in nodes if '展开' in (n['text'] or '')]
+    if not exp:
+        return False
+    logger.info('展开「更多金币等你赚」')
+    ui.tap_node(d, exp[0])
+    time.sleep(2)
+    activity.scroll_panel(d, 'up')
+    return True
+
+
 def run(d, mode='auto', keyword=activity.KEYWORD):
     """执行金币任务，返回结果摘要字符串。"""
     logger.info('开始运行金币任务')
@@ -120,6 +197,14 @@ def run(d, mode='auto', keyword=activity.KEYWORD):
     done = 0
     claimed = 0
     attempts = {}
+
+    # 新版金币面板：先问是否做「额外得金币」，再展开「更多金币等你赚」
+    first = activity.ensure_panel(d, activity.COIN_PANEL, activity.COIN_ENTRY, ENTRY_LABEL)
+    if first and _is_coin_v2(first):
+        logger.info('检测到新版金币面板（今日速赚淘金币）')
+        if ask_extra_coins():
+            done += do_extra_rows(d)
+        expand_more_coins(d)
 
     for round_no in range(1, MAX_ROUNDS + 1):
         nodes = activity.ensure_panel(d, activity.COIN_PANEL, activity.COIN_ENTRY, ENTRY_LABEL)

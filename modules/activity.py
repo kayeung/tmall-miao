@@ -8,7 +8,7 @@ import re
 import time
 
 from modules import ui
-from modules.utils import human_swipe, open_taobao_search
+from modules.utils import human_swipe, open_taobao_search, search_in_taobao
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +19,8 @@ KEYWORD = '淘金币双11狂享20亿'
 COIN_ENTRY = (0.10, 0.396)
 ENERGY_ENTRY = (0.896, 0.396)
 
-# 两个面板的标题
-COIN_PANEL = ('赚金币抵钱',)
+# 两个面板的标题（金币面板有旧版「赚金币抵钱」和新版「今日速赚淘金币」两套）
+COIN_PANEL = ('赚金币抵钱', '完成下方任务得额外金币', '更多金币等你赚')
 ENERGY_PANEL = ('做任务赚能量',)
 
 
@@ -74,7 +74,7 @@ def ensure_taobao(d):
         return True
 
     logger.warning('当前前台不是淘宝（%s），切回淘宝', pkg or '未知')
-    d.start_app(ui.TAOBAO_PKG)
+    d.start_app(ui.TAOBAO_PKG, user=ui.TAOBAO_USER)
     if _wait_taobao(d, 25):
         return True
 
@@ -85,7 +85,7 @@ def ensure_taobao(d):
         except Exception as e:
             logger.warning('强制停止失败: %s', e)
         time.sleep(1.5)
-        d.start_app(ui.TAOBAO_PKG)
+        d.start_app(ui.TAOBAO_PKG, user=ui.TAOBAO_USER)
         if _wait_taobao(d, 25):
             return True
 
@@ -100,7 +100,7 @@ def _wait_taobao(d, timeout=25):
         if cur.get('package') == ui.TAOBAO_PKG:
             return True
         if ui.is_clone_resolver(d):
-            ui.tap_app_clone_main(d)
+            ui.tap_app_instance(d, clone=ui.TAOBAO_IS_CLONE)
             time.sleep(2)
             continue
         time.sleep(1)
@@ -130,6 +130,24 @@ def open_activity(d, keyword=KEYWORD):
         raise RuntimeError('未检测到活动页，请确认淘宝已登录、活动可正常进入')
     logger.info('活动页已打开')
     time.sleep(2)
+
+
+def reenter_activity(d, keyword=KEYWORD):
+    """重新进入活动页：优先在 App 内返回首页再搜索，尽量不杀进程回桌面。
+
+    杀进程重启在 vivo/OPPO 上会触发「应用分身」选择框，容易打断流程。
+    """
+    if (d.app_current() or {}).get('package') == ui.TAOBAO_PKG:
+        try:
+            if search_in_taobao(d, keyword) and wait_activity(d, timeout=40):
+                logger.info('已在 App 内重新进入活动页')
+                return True
+        except Exception as e:
+            logger.warning('App 内重新搜索失败: %s', e)
+
+    logger.info('App 内无法恢复，重启淘宝进入活动页')
+    open_activity(d, keyword)
+    return bool(wait_activity(d, timeout=20))
 
 
 def enter_activity(d, mode='auto', keyword=KEYWORD):
@@ -309,13 +327,13 @@ def ensure_panel(d, titles, ratio, label, attempts=3):
             if i == 0:
                 if not on_activity(d) and not back_to_activity(d):
                     logger.info('不在活动页，重新搜索进入')
-                    open_activity(d)
+                    reenter_activity(d)
                 else:
                     logger.info('任务面板未打开，点击「%s」', label)
                     tap_entry(d, ratio, label)
             else:
                 logger.info('任务面板仍未打开，重新进入活动页（第%d次）', i + 1)
-                open_activity(d)
+                reenter_activity(d)
         except Exception as e:
             logger.warning('打开任务面板失败: %s', e)
             return None
@@ -555,7 +573,7 @@ def run_browse_task(d, task, seconds, titles=None, parse_fn=None):
     if not on_activity(d, tries=2):
         logger.warning('仍未回到活动页，重新搜索进入')
         try:
-            open_activity(d)
+            reenter_activity(d)
         except Exception as e:
             logger.warning('重新进入活动失败: %s', e)
             return False

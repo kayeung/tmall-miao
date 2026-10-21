@@ -166,6 +166,25 @@ def select_connection():
             print(f"{Colors.FAIL}❌ 无效选择，请输入1或2。{Colors.ENDC}")
 
 
+def select_taobao_instance():
+    """选择要操作的淘宝实例（vivo/OPPO 的应用分身跑在独立用户空间）。"""
+    print()
+    print(f"{Colors.OKBLUE}╔══════════════════════════════════════════╗{Colors.ENDC}")
+    print(f"{Colors.OKBLUE}║        {Colors.BOLD}请选择要操作的淘宝{Colors.ENDC}{Colors.OKBLUE}                ║{Colors.ENDC}")
+    print(f"{Colors.OKBLUE}╠══════════════════════════════════════════╣{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}║ 1. {Colors.ENDC}主应用（默认）{Colors.OKBLUE.ljust(25, ' ')}║{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}║ 2. {Colors.ENDC}应用分身（vivo/OPPO 分身）{Colors.OKBLUE.ljust(15, ' ')}║{Colors.ENDC}")
+    print(f"{Colors.OKBLUE}╚══════════════════════════════════════════╝{Colors.ENDC}")
+
+    while True:
+        choice = input(f"{Colors.INPUT}请选择 (1-2，默认1): {Colors.ENDC}").strip()
+        if choice in ("", "1"):
+            return False
+        if choice == "2":
+            return True
+        print(f"{Colors.FAIL}❌ 无效选择，请输入1或2。{Colors.ENDC}")
+
+
 def display_menu():
     features = [
         f"{Colors.OKCYAN}欢迎光临~{Colors.ENDC}",
@@ -333,6 +352,10 @@ def main():
             if serial:
                 print(f"  5. 无线连接需先用USB执行 adb tcpip 5555 开启TCP模式")
         sys.exit(1)
+
+    # 选择操作主应用还是应用分身（vivo/OPPO 分身跑在 user 999）
+    from modules import ui as _ui
+    _ui.set_taobao_instance(select_taobao_instance())
 
     print('\n\n\n')
 

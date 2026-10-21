@@ -103,7 +103,6 @@ def run(d, mode='auto', keyword=activity.KEYWORD):
     claimed_tasks = 0
     claimed_total = set()
     attempts = {}
-    scrolled = False
 
     for round_no in range(1, MAX_ROUNDS + 1):
         nodes = activity.ensure_panel(d, activity.ENERGY_PANEL, activity.ENERGY_ENTRY, ENTRY_LABEL)
@@ -132,16 +131,18 @@ def run(d, mode='auto', keyword=activity.KEYWORD):
                 logger.warning('领取奖励失败: %s', e)
             continue
 
-        task = _pick_browse(tasks, attempts)
+        # 当前屏没有可执行任务时，滚动面板继续找；仍没有就关闭重开刷新
+        task, nodes = _find_actionable(d, attempts)
+        if not task:
+            logger.info('面板内没有可执行任务，关闭重开刷新任务列表')
+            activity.close_panel(d)
+            nodes = activity.ensure_panel(d, activity.ENERGY_PANEL, activity.ENERGY_ENTRY,
+                                          ENTRY_LABEL)
+            task, nodes = _find_actionable(d, attempts) if nodes else (None, None)
         if not task:
             logger.info('没有可自动完成的浏览任务')
-            if not scrolled:
-                _scroll_panel(d)
-                scrolled = True
-                continue
             break
 
-        scrolled = False
         attempts[task['base']] = attempts.get(task['base'], 0) + 1
         try:
             if do_browse(d, task):

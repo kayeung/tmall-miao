@@ -16,10 +16,25 @@ logger = logging.getLogger(__name__)
 BTN_TEXTS = ('去完成', '领取奖励', '去领取', '去逛逛', '逛一逛')
 
 # 任务面板标题（用于圈定面板子树，剔除下方页面文本的干扰）
-PANEL_TITLES = ('赚金币抵钱', '做任务赚能量')
+PANEL_TITLES = ('赚金币抵钱', '做任务赚能量', '完成下方任务得额外金币', '更多金币等你赚')
 
 # 需要打开的 App 包名
 TAOBAO_PKG = 'com.taobao.taobao'
+
+# 淘宝实例：vivo/OPPO 的「应用分身」跑在 user 999，主应用是 user 0。
+# 由 main.py 在启动时按用户选择设置。
+TAOBAO_USER = 0
+TAOBAO_IS_CLONE = False
+
+
+def set_taobao_instance(clone, user=None):
+    """设置要操作哪个淘宝实例（主应用 / 应用分身）。"""
+    global TAOBAO_USER, TAOBAO_IS_CLONE
+    TAOBAO_IS_CLONE = bool(clone)
+    if user is not None:
+        TAOBAO_USER = int(user)
+    else:
+        TAOBAO_USER = 999 if clone else 0
 
 
 def _parse_bounds(raw):
@@ -80,22 +95,29 @@ def dump_nodes(d):
     return flatten(dump_tree(d))
 
 
-def _find_panel(node, titles=PANEL_TITLES, require_title=False):
+def _find_panel(node, titles=PANEL_TITLES, require_title=False, min_height=0):
     """自底向上找「包含面板标题 + 至少一个任务按钮」的最小子树。
 
-    require_title=True 时，只认标题匹配的子树（页面里能识别出已知面板标题时用）。
+    require_title=True 时只认标题匹配的子树，并且要求子树高度超过 min_height：
+    面板标题和关闭按钮常被放在一个只有几十像素高的标题容器里，
+    不加高度限制会只圈到标题栏，拿不到下面的任务列表。
     """
     for child in node.get('children', []):
-        found = _find_panel(child, titles, require_title)
+        found = _find_panel(child, titles, require_title, min_height)
         if found is not None:
             return found
+
     flat = flatten(node)
+    if not flat:
+        return None
     has_title = any(n['text'] in titles for n in flat)
     btn_count = sum(1 for n in flat if n['text'] in BTN_TEXTS)
-    if not btn_count:
-        return None
     if require_title:
-        return flat if has_title else None
+        if not has_title:
+            return None
+        top = min(n['t'] for n in flat)
+        bottom = max(n['b'] for n in flat)
+        return flat if (bottom - top) >= min_height else None
     # 标题整体改版时才退化为「至少两个任务按钮」
     return flat if btn_count >= 2 else None
 
@@ -104,12 +126,21 @@ def _page_has_known_title(tree):
     return any(n['text'] in PANEL_TITLES for n in flatten(tree))
 
 
+def _min_panel_height(d):
+    """面板至少占屏幕一半高度（根节点 bounds 可能是 0，不能用来算）。"""
+    try:
+        _, h = d.display_size
+        return int(h * 0.5)
+    except Exception:
+        return 0
+
+
 def dump_panel(d, titles=PANEL_TITLES):
     """返回任务面板内的节点列表；面板未打开时返回 None。"""
     tree = dump_tree(d)
     if tree is None:
         return None
-    return _find_panel(tree, titles, _page_has_known_title(tree))
+    return _find_panel(tree, titles, _page_has_known_title(tree), _min_panel_height(d))
 
 
 def inspect(d, titles=PANEL_TITLES):
@@ -117,7 +148,8 @@ def inspect(d, titles=PANEL_TITLES):
     tree = dump_tree(d)
     if tree is None:
         return None, []
-    return _find_panel(tree, titles, _page_has_known_title(tree)), flatten(tree)
+    return (_find_panel(tree, titles, _page_has_known_title(tree), _min_panel_height(d)),
+            flatten(tree))
 
 
 def center(node):
@@ -246,41 +278,112 @@ def is_clone_resolver(d):
     return any(h in pkg or h in activity_name for h in CLONE_HINTS)
 
 
-def tap_app_clone_main(d, nodes=None):
-    """在分身选择框里点「主应用」。
+def tap_app_instance(d, clone=False, nodes=None):
+    """在「选择要使用的应用」弹窗里点选指定实例。
 
-    vivo 的弹窗选项是「淘宝」和「Ⅱ·淘宝」，最稳的办法是先找到带 Ⅱ 的克隆项，
-    再去点去掉 Ⅱ· 前缀的同名项，避免误点到标题「选择要使用的应用」。
+    vivo 的选项是「淘宝」和「Ⅱ·淘宝」：clone=True 选带 Ⅱ 的那个，
+    否则选不带 Ⅱ 的主应用。先找 Ⅱ 项再按名字匹配，避免误点标题。
     """
     nodes = nodes if nodes is not None else dump_nodes(d)
     labels = [(n['text'] or n['desc']) for n in nodes]
 
-    clone = next((l for l in labels if l.startswith('Ⅱ')), None)
-    if clone:
-        main = clone.replace('Ⅱ·', '').replace('Ⅱ', '').lstrip('·').strip()
-        for n in nodes:
-            if (n['text'] or n['desc']) == main:
-                logger.info('检测到应用分身选择框，点选主应用：%s', main)
-                tap_node(d, n)
-                return True
+    clone_label = next((l for l in labels if l.startswith('Ⅱ')), None)
+    if clone_label:
+        if clone:
+            for n in nodes:
+                if (n['text'] or n['desc']) == clone_label:
+                    logger.info('检测到应用分身选择框，点选分身：%s', clone_label)
+                    tap_node(d, n)
+                    return True
+        else:
+            main = clone_label.replace('Ⅱ·', '').replace('Ⅱ', '').lstrip('·').strip()
+            for n in nodes:
+                if (n['text'] or n['desc']) == main:
+                    logger.info('检测到应用分身选择框，点选主应用：%s', main)
+                    tap_node(d, n)
+                    return True
 
-    # 兜底：下半屏、左半边、不是标题/关闭/说明文字
+    # 兜底：按左右位置选
     w, h = d.display_size
     bad = ('关闭', '前往', '设置', '选择')
     best = None
     for n in nodes:
         label = n['text'] or n['desc']
-        if not label or any(b in label for b in bad) or 'Ⅱ' in label:
+        if not label or any(b in label for b in bad):
             continue
-        if n['t'] < h * 0.5 or center(n)[0] > w * 0.55:
+        if n['t'] < h * 0.5:
+            continue
+        is_clone_item = 'Ⅱ' in label
+        if is_clone_item != bool(clone):
             continue
         if best is None or n['t'] < best['t']:
             best = n
     if not best:
         return False
-    logger.info('检测到应用分身选择框，点选主应用：%s', best['text'] or best['desc'])
+    logger.info('检测到应用分身选择框，点选%s：%s', '分身' if clone else '主应用',
+                best['text'] or best['desc'])
     tap_node(d, best)
     return True
+
+
+def tap_app_clone_main(d, nodes=None):
+    """兼容旧调用：点主应用。"""
+    return tap_app_instance(d, clone=False, nodes=nodes)
+
+
+def parse_coin_rows(nodes):
+    """新版金币面板：每行 = 标题 + 描述 + 右侧「+N」奖励徽章，点标题进入任务。
+
+    例：`看看#薛记` / `浏览15秒` / 右侧 `+30`
+    返回 [{'name','desc','action','seconds','done','total','node'}]，node 为可点的标题节点。
+    """
+    right_edge = max((n['r'] for n in nodes), default=1080)
+    rows = []
+    for badge in nodes:
+        label = badge['text'] or badge['desc']
+        if len(label) < 2 or label[0] not in '+＋':
+            continue
+        if not label[1:].strip().isdigit():
+            continue
+        if badge['l'] < right_edge * 0.6:  # 只要右侧的奖励徽章
+            continue
+
+        same_row = [n for n in nodes
+                    if n['text'] and n['r'] <= badge['l'] + 10
+                    and n['t'] < badge['b'] and n['b'] > badge['t']]
+        if not same_row:
+            continue
+        title = min(same_row, key=lambda n: n['t'])
+        desc = max(same_row, key=lambda n: n['t'])
+        if title['text'] == desc['text']:
+            desc_text = ''
+        else:
+            desc_text = desc['text']
+
+        m = re.search(r'\((\d+)\s*/\s*(\d+)\)', title['text'])
+        done, total = (int(m.group(1)), int(m.group(2))) if m else (0, 1)
+
+        if '浏览' in desc_text:
+            sm = re.search(r'(\d+)', desc_text)
+            action, seconds = 'browse', int(sm.group(1)) if sm else 15
+        elif '答题' in desc_text:
+            action, seconds = 'quiz', 0
+        elif '去逛' in desc_text or '逛一逛' in desc_text:
+            action, seconds = 'external', 0
+        else:
+            action, seconds = 'unknown', 0
+
+        if '完成下方任务' in title['text'] or '额外金币' in title['text']:
+            continue  # 这是进度说明，不是任务
+
+        rows.append({
+            'name': title['text'], 'desc': desc_text, 'action': action,
+            'seconds': seconds, 'done': done, 'total': total,
+            'node': title, 'x': center(title)[0], 'y': center(title)[1],
+        })
+
+    rows.sort(key=lambda r: r['y'])
+    return rows
 
 
 def text_of(nodes, contains):
