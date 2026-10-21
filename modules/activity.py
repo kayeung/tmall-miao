@@ -206,8 +206,42 @@ def _gentle_scroll_top(d, times=3):
             return
 
 
+# 弹窗/引导层上的关闭类文案
+CLOSE_TEXTS = ('关闭', '×', 'X', 'x', '跳过', '我知道了', '知道了', '以后再说',
+               '暂不', '取消', '不再提示', '放弃', '下次再说')
+
+
+def close_popups(d, rounds=3):
+    """关掉活动页上的弹窗/引导层（它们会挡住入口按钮）。返回关闭次数。"""
+    closed = 0
+    for _ in range(rounds):
+        nodes = ui.dump_nodes(d)
+        labels = [(n['text'] or n['desc']).strip() for n in nodes]
+
+        # 任务面板自己也有「关闭」，别把面板关掉
+        if any(t in labels for t in ui.PANEL_TITLES):
+            break
+
+        cands = [n for n in nodes
+                 if n['clickable'] and (n['text'] or n['desc']).strip() in CLOSE_TEXTS]
+        if not cands:
+            break
+
+        cands.sort(key=lambda n: (0 if (n['text'] or n['desc']).strip() == '关闭' else 1, n['t']))
+        name = (cands[0]['text'] or cands[0]['desc']).strip()
+        logger.info('活动页有弹窗，点击「%s」关闭', name)
+        ui.tap_node(d, cands[0])
+        closed += 1
+        time.sleep(1.5)
+    return closed
+
+
 def tap_entry(d, ratio, label):
     """点击活动页底部的入口按钮（去赚金币 / 去赚能量）。"""
+    n = close_popups(d)
+    if n:
+        logger.info('已关闭 %d 个弹窗', n)
+
     nodes = ui.dump_nodes(d)
     if ui.tap_text(d, nodes, label, exact=False):
         logger.debug('通过文案点击「%s」', label)
@@ -238,14 +272,30 @@ def wake_screen(d):
         logger.debug('读取屏幕状态失败: %s', e)
 
 
+# 锁屏界面才会出现的文案
+LOCK_HINTS = ('上滑即可解锁', '滑动解锁', '上滑解锁', '双指上滑', '输入密码',
+              '绘制图案', '指纹解锁', '面部识别', '重新解锁')
+
+
 def _is_locked(d, nodes=None):
-    """是否处于锁屏界面。"""
+    """是否处于锁屏界面。
+
+    不能只看有没有「解锁」两个字：活动页/商品页也常有「解锁好礼」这类文案，
+    必须同时满足「前台不是淘宝」且「停在各家桌面」才判定为锁屏。
+    """
+    cur = d.app_current() or {}
+    pkg = (cur.get('package') or '').lower()
+
     nodes = nodes if nodes is not None else ui.dump_nodes(d)
-    for n in nodes:
-        blob = n['text'] + n['desc']
-        if '解锁' in blob or '上滑' in blob and '锁' in blob:
-            return True
-    return False
+    blob = ' '.join((n['text'] + ' ' + n['desc']) for n in nodes)
+
+    if any(h in blob for h in LOCK_HINTS):
+        return True
+    if pkg == ui.TAOBAO_PKG:
+        return False
+
+    launcher = any(k in pkg for k in ('launcher', 'systemui', 'homepage'))
+    return launcher and ('解锁' in blob or '上滑' in blob)
 
 
 def ensure_unlocked(d, tries=2):
