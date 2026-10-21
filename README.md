@@ -1,7 +1,7 @@
 # 任务助手（安卓版）
 
 > Fork 自 [MonsterNone/tmall-miao](https://github.com/MonsterNone/tmall-miao)，已适配 **2026 双11「淘金币双11狂享20亿」**。
-> 当前只维护安卓端，鸿蒙端待活动稳定后再适配。
+> 当前只维护安卓端，鸿蒙端不适配。
 
 当前版本：**20261111-F**
 
