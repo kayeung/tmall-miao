@@ -1,0 +1,170 @@
+[38;5;250m2026-10-22:11:33:52 DEBUG    [core.py  :254] file u2.jar md5: 7e67a4ff98c4529dca84931dff114885[0m
+[38;5;250m2026-10-22:11:33:52 DEBUG    [core.py  :243] file u2.jar already pushed[0m
+[38;5;250m2026-10-22:11:33:52 DEBUG    [core.py  :111] http request GET /ping None[0m
+[38;5;250m2026-10-22:11:33:52 DEBUG    [core.py  :71 ] launch uiautomator with cmd: CLASSPATH=/data/local/tmp/u2.jar app_process / com.wetest.uia2.Main[0m
+[38;5;250m2026-10-22:11:33:52 DEBUG    [core.py  :111] http request GET /ping None[0m
+[38;5;250m2026-10-22:11:33:52 DEBUG    [core.py  :39 ] MockAdbProcess: b'[server] INFO: [UiAutomator2Server] Starting Server\n'[0m
+[38;5;250m2026-10-22:11:33:52 DEBUG    [core.py  :39 ] MockAdbProcess: b'SLF4J: Failed to load class "org.slf4j.impl.StaticLoggerBinder".\nSLF4J: Defaulting to no-operation (NOP) logger implementation\nSLF4J: See http://www.slf4j.org/codes.html#StaticLoggerBinder for further details.\n'[0m
+[38;5;250m2026-10-22:11:33:52 DEBUG    [core.py  :39 ] MockAdbProcess: b'[server] INFO: clipboardManager inited\n[server] INFO: tmpdir is /data/local/tmp/u2\n'[0m
+[38;5;250m2026-10-22:11:33:52 DEBUG    [core.py  :39 ] MockAdbProcess: b'[server] INFO: http server listening on *:9008\n'[0m
+[38;5;250m2026-10-22:11:33:53 DEBUG    [core.py  :111] http request GET /ping None[0m
+2026-10-22:11:33:54 INFO     [farm.py  :409] ø™ º‘À––∞≈∞≈≈©≥°»ŒŒÒ
+[38;5;250m2026-10-22:11:33:54 DEBUG    [base.py  :110] shell: svc power stayon true[0m
+[38;5;250m2026-10-22:11:33:55 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'deviceInfo', 'params': {}}[0m
+[38;5;250m2026-10-22:11:33:56 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:33:56 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'pressKey', 'params': ('volume_down',)}[0m
+[38;5;250m2026-10-22:11:33:56 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'pressKey', 'params': ('volume_down',)}[0m
+[38;5;250m2026-10-22:11:33:57 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'pressKey', 'params': ('volume_down',)}[0m
+[38;5;250m2026-10-22:11:33:57 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'pressKey', 'params': ('volume_down',)}[0m
+[38;5;250m2026-10-22:11:33:57 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'pressKey', 'params': ('volume_down',)}[0m
+[38;5;250m2026-10-22:11:33:57 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'pressKey', 'params': ('volume_down',)}[0m
+[38;5;250m2026-10-22:11:33:57 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'pressKey', 'params': ('volume_down',)}[0m
+[38;5;250m2026-10-22:11:33:58 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'pressKey', 'params': ('volume_down',)}[0m
+[38;5;250m2026-10-22:11:33:58 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'pressKey', 'params': ('volume_down',)}[0m
+[38;5;250m2026-10-22:11:33:58 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'pressKey', 'params': ('volume_down',)}[0m
+2026-10-22:11:33:58 INFO     [farm.py  :82 ] À—À˜≤¢Ω¯»Î∞≈∞≈≈©≥°
+2026-10-22:11:33:58 INFO     [utils.py :192]  ◊œ»πÿ±’Ã‘±¶App
+2026-10-22:11:34:02 INFO     [utils.py :195] ¥Úø™Ã‘±¶App
+[38;5;250m2026-10-22:11:34:02 DEBUG    [base.py  :110] shell: cmd package resolve-activity --brief com.taobao.taobao[0m
+[38;5;250m2026-10-22:11:34:02 DEBUG    [device_adapter.py:193] œ‘ Ω∆Ù∂Ø”¶”√: am start -n com.taobao.taobao/com.taobao.tao.welcome.Welcome[0m
+[38;5;250m2026-10-22:11:34:02 DEBUG    [base.py  :110] shell: am start -n com.taobao.taobao/com.taobao.tao.welcome.Welcome[0m
+2026-10-22:11:34:02 INFO     [utils.py :197] µ»¥˝Ã‘±¶ ◊“≥º”‘ÿ...
+2026-10-22:11:34:02 INFO     [utils.py :113] ºÏ≤‚µΩ”¶”√∑÷…Ì—°‘ÒøÚ£¨—°‘Ò÷˜”¶”√
+[38;5;250m2026-10-22:11:34:02 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+2026-10-22:11:34:02 INFO     [ui.py    :313] ºÏ≤‚µΩ”¶”√∑÷…Ì—°‘ÒøÚ£¨µ„—°÷˜”¶”√£∫Ã‘±¶
+[38;5;250m2026-10-22:11:34:02 DEBUG    [ui.py    :201] µ„ª˜ Ã‘±¶ (409,2854)[0m
+[38;5;250m2026-10-22:11:34:02 DEBUG    [__init__.py:179] operation [click] pre-delay 0.1s[0m
+[38;5;250m2026-10-22:11:34:02 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'click', 'params': (409, 2854)}[0m
+[38;5;250m2026-10-22:11:34:02 DEBUG    [__init__.py:183] operation [click] post-delay 0.1s[0m
+[38;5;250m2026-10-22:11:34:05 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:34:05 DEBUG    [ui.py    :201] µ„ª˜ À—À˜¿∏ (627,359)[0m
+[38;5;250m2026-10-22:11:34:05 DEBUG    [__init__.py:179] operation [click] pre-delay 0.1s[0m
+[38;5;250m2026-10-22:11:34:05 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'click', 'params': (627, 359)}[0m
+[38;5;250m2026-10-22:11:34:05 DEBUG    [__init__.py:183] operation [click] post-delay 0.1s[0m
+2026-10-22:11:34:05 INFO     [utils.py :142] µ»¥˝Ã‘±¶À—À˜“≥º”‘ÿ...
+[38;5;250m2026-10-22:11:34:05 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+2026-10-22:11:34:06 INFO     [utils.py :153]  ‰»ÎÀ—À˜¥ £∫∞≈∞≈≈©≥°
+[38;5;250m2026-10-22:11:34:06 DEBUG    [ui.py    :201] µ„ª˜ ∞≈∞≈≈©≥°…Ã∆∑ (2026,361)[0m
+[38;5;250m2026-10-22:11:34:06 DEBUG    [__init__.py:179] operation [click] pre-delay 0.1s[0m
+[38;5;250m2026-10-22:11:34:06 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'click', 'params': (2026, 361)}[0m
+[38;5;250m2026-10-22:11:34:06 DEBUG    [__init__.py:183] operation [click] post-delay 0.1s[0m
+[38;5;250m2026-10-22:11:34:07 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'waitForExists', 'params': ({'mask': 2097152, 'childOrSibling': [], 'childOrSiblingSelector': [], 'resourceId': 'com.taobao.taobao:id/searchEdit'}, 3000)}[0m
+[38;5;250m2026-10-22:11:34:07 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'setText', 'params': ({'mask': 2097152, 'childOrSibling': [], 'childOrSiblingSelector': [], 'resourceId': 'com.taobao.taobao:id/searchEdit'}, '∞≈∞≈≈©≥°')}[0m
+2026-10-22:11:34:09 INFO     [utils.py :178] µ„ª˜À—À˜
+[38;5;250m2026-10-22:11:34:09 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:34:09 DEBUG    [ui.py    :201] µ„ª˜ À—À˜ (1311,361)[0m
+[38;5;250m2026-10-22:11:34:09 DEBUG    [__init__.py:179] operation [click] pre-delay 0.1s[0m
+[38;5;250m2026-10-22:11:34:09 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'click', 'params': (1311, 361)}[0m
+[38;5;250m2026-10-22:11:34:09 DEBUG    [__init__.py:183] operation [click] post-delay 0.1s[0m
+[38;5;250m2026-10-22:11:34:13 DEBUG    [shell.py :161] get window size from 'wm size': WindowSize(width=1440, height=3168) False[0m
+[38;5;250m2026-10-22:11:34:13 DEBUG    [__init__.py:179] operation [click] pre-delay 0.1s[0m
+[38;5;250m2026-10-22:11:34:13 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'click', 'params': (172, 744)}[0m
+[38;5;250m2026-10-22:11:34:13 DEBUG    [__init__.py:183] operation [click] post-delay 0.1s[0m
+[38;5;250m2026-10-22:11:34:20 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:34:21 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:34:21 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:34:22 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:34:22 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:34:22 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+2026-10-22:11:34:23 INFO     [farm.py  :141] ΩÒ»’∑ ¡œ“—¡Ïπ˝£∫500£¨∑ ¡œ£¨√˜»’7µ„ø…¡Ï
+[38;5;250m2026-10-22:11:34:23 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:34:24 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:34:24 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:34:27 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:34:27 DEBUG    [farm.py  :183] µ±«∞“≥√ÊΩ⁄µ„ 143 ∏ˆ£¨◊º±∏µ„ºØ∑ ¡œ[0m
+[38;5;250m2026-10-22:11:34:27 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'takeScreenshot', 'params': (1, 80)}[0m
+[38;5;250m2026-10-22:11:34:29 DEBUG    [ocr.py   :33 ] ≥ı ºªØ OCR “˝«Ê[0m
+[38;5;250m2026-10-22:11:34:30 DEBUG    [PngImagePlugin.py:213] STREAM b'IHDR' 16 13[0m
+[38;5;250m2026-10-22:11:34:30 DEBUG    [PngImagePlugin.py:213] STREAM b'iCCP' 41 302[0m
+[38;5;250m2026-10-22:11:34:30 DEBUG    [PngImagePlugin.py:443] iCCP profile name b'ICC Profile'[0m
+[38;5;250m2026-10-22:11:34:30 DEBUG    [PngImagePlugin.py:445] Compression method 0[0m
+[38;5;250m2026-10-22:11:34:30 DEBUG    [PngImagePlugin.py:213] STREAM b'IDAT' 355 65536[0m
+2026-10-22:11:34:37 INFO     [farm.py  :188] OCR ∂®Œª°∏ºØ∑ ¡œ°π(1080,2404)
+[38;5;250m2026-10-22:11:34:37 DEBUG    [__init__.py:179] operation [click] pre-delay 0.1s[0m
+[38;5;250m2026-10-22:11:34:37 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'click', 'params': (1080, 2404)}[0m
+[38;5;250m2026-10-22:11:34:37 DEBUG    [__init__.py:183] operation [click] post-delay 0.1s[0m
+[38;5;250m2026-10-22:11:34:41 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:34:42 DEBUG    [shell.py :161] get window size from 'wm size': WindowSize(width=1440, height=3168) False[0m
+[38;5;250m2026-10-22:11:34:42 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'takeScreenshot', 'params': (1, 80)}[0m
+[38;5;250m2026-10-22:11:34:43 DEBUG    [PngImagePlugin.py:213] STREAM b'IHDR' 16 13[0m
+[38;5;250m2026-10-22:11:34:43 DEBUG    [PngImagePlugin.py:213] STREAM b'iCCP' 41 302[0m
+[38;5;250m2026-10-22:11:34:43 DEBUG    [PngImagePlugin.py:443] iCCP profile name b'ICC Profile'[0m
+[38;5;250m2026-10-22:11:34:43 DEBUG    [PngImagePlugin.py:445] Compression method 0[0m
+[38;5;250m2026-10-22:11:34:43 DEBUG    [PngImagePlugin.py:213] STREAM b'IDAT' 355 65536[0m
+2026-10-22:11:34:51 INFO     [farm.py  :326] µ⁄ 1 ¬÷£∫√Ê∞Â»ŒŒÒ 6 ∏ˆ£®OCR£©
+[38;5;250m2026-10-22:11:34:51 DEBUG    [farm.py  :329]   °§ ¬Úœﬁ ±’€ø€∫√ŒÔµ√Ω±¿¯£®0/1£© | œ¬µ•¡Ï¥Û∂Ó∑ ¡œ◊Ó∏ﬂ+130000 | »•ÕÍ≥…[0m
+[38;5;250m2026-10-22:11:34:51 DEBUG    [farm.py  :329]   °§ ø¥÷±≤•¡Ï√ø»’Ã·œ÷∫Ï∞¸£®0/1£© | π‰15√Îµ√ | »•ÕÍ≥…[0m
+[38;5;250m2026-10-22:11:34:51 DEBUG    [farm.py  :329]   °§ À—“ªÀ—ƒ„–ƒ“«µƒ±¶±¥£®2/5£© | ‰Ø¿¿µ√Ω±¿¯ | »•ÕÍ≥…[0m
+[38;5;250m2026-10-22:11:34:51 DEBUG    [farm.py  :329]   °§ π‰÷ß∏∂±¶∞≈∞≈≈©≥°£®0/1) | ªπø…¡Ï | »•ÕÍ≥…[0m
+[38;5;250m2026-10-22:11:34:51 DEBUG    [farm.py  :329]   °§ »•∑…÷Ì√‚∑—≥Àπ´ΩªµÿÃ˙£®0/1£© | π‰π‰µ√ | »•ÕÍ≥…[0m
+[38;5;250m2026-10-22:11:34:51 DEBUG    [farm.py  :329]   °§ »•∫Ï∞¸«©µΩµ√∑ ¡œ£®0/1£© | ‰Ø¿¿10sµ√ | »•ÕÍ≥…[0m
+2026-10-22:11:34:51 INFO     [farm.py  :373] ÷¥––»ŒŒÒ£∫ø¥÷±≤•¡Ï√ø»’Ã·œ÷∫Ï∞¸£®0/1£©£®π‰15√Îµ√£©
+[38;5;250m2026-10-22:11:34:51 DEBUG    [__init__.py:179] operation [click] pre-delay 0.1s[0m
+[38;5;250m2026-10-22:11:34:51 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'click', 'params': (1231, 1688)}[0m
+[38;5;250m2026-10-22:11:34:51 DEBUG    [__init__.py:183] operation [click] post-delay 0.1s[0m
+2026-10-22:11:34:54 WARNING  [farm.py  :381] »ŒŒÒ°∏ø¥÷±≤•¡Ï√ø»’Ã·œ÷∫Ï∞¸£®0/1£©°πÃ¯◊™Õ‚≤ø App£®com.vivo.appfilter£©£¨º”»ÎÃ¯π˝√˚µ•
+[38;5;250m2026-10-22:11:34:54 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'deviceInfo', 'params': {}}[0m
+[38;5;250m2026-10-22:11:34:54 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+2026-10-22:11:34:55 WARNING  [activity.py:77 ] µ±«∞«∞Ã®≤ª «Ã‘±¶£®com.vivo.appfilter£©£¨«–ªÿÃ‘±¶
+[38;5;250m2026-10-22:11:34:55 DEBUG    [base.py  :110] shell: cmd package resolve-activity --brief com.taobao.taobao[0m
+[38;5;250m2026-10-22:11:34:55 DEBUG    [device_adapter.py:193] œ‘ Ω∆Ù∂Ø”¶”√: am start -n com.taobao.taobao/com.taobao.tao.welcome.Welcome[0m
+[38;5;250m2026-10-22:11:34:55 DEBUG    [base.py  :110] shell: am start -n com.taobao.taobao/com.taobao.tao.welcome.Welcome[0m
+[38;5;250m2026-10-22:11:34:55 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+2026-10-22:11:34:55 INFO     [ui.py    :313] ºÏ≤‚µΩ”¶”√∑÷…Ì—°‘ÒøÚ£¨µ„—°÷˜”¶”√£∫Ã‘±¶
+[38;5;250m2026-10-22:11:34:55 DEBUG    [ui.py    :201] µ„ª˜ Ã‘±¶ (409,2846)[0m
+[38;5;250m2026-10-22:11:34:55 DEBUG    [__init__.py:179] operation [click] pre-delay 0.1s[0m
+[38;5;250m2026-10-22:11:34:55 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'click', 'params': (409, 2846)}[0m
+[38;5;250m2026-10-22:11:34:55 DEBUG    [__init__.py:183] operation [click] post-delay 0.1s[0m
+2026-10-22:11:35:35 WARNING  [activity.py:83 ] «ø÷∆Õ£÷π◊Ëµ≤µƒ App: com.vivo.appfilter
+[38;5;250m2026-10-22:11:35:35 DEBUG    [base.py  :110] shell: am force-stop com.vivo.appfilter[0m
+[38;5;250m2026-10-22:11:35:36 DEBUG    [base.py  :110] shell: cmd package resolve-activity --brief com.taobao.taobao[0m
+[38;5;250m2026-10-22:11:35:36 DEBUG    [device_adapter.py:193] œ‘ Ω∆Ù∂Ø”¶”√: am start -n com.taobao.taobao/com.taobao.tao.welcome.Welcome[0m
+[38;5;250m2026-10-22:11:35:36 DEBUG    [base.py  :110] shell: am start -n com.taobao.taobao/com.taobao.tao.welcome.Welcome[0m
+[38;5;250m2026-10-22:11:35:37 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+2026-10-22:11:35:37 INFO     [ui.py    :313] ºÏ≤‚µΩ”¶”√∑÷…Ì—°‘ÒøÚ£¨µ„—°÷˜”¶”√£∫Ã‘±¶
+[38;5;250m2026-10-22:11:35:37 DEBUG    [ui.py    :201] µ„ª˜ Ã‘±¶ (409,2844)[0m
+[38;5;250m2026-10-22:11:35:37 DEBUG    [__init__.py:179] operation [click] pre-delay 0.1s[0m
+[38;5;250m2026-10-22:11:35:37 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'click', 'params': (409, 2844)}[0m
+[38;5;250m2026-10-22:11:35:37 DEBUG    [__init__.py:183] operation [click] post-delay 0.1s[0m
+[38;5;250m2026-10-22:11:35:42 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'pressKey', 'params': ('back',)}[0m
+[38;5;250m2026-10-22:11:35:44 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:35:45 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:35:46 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+2026-10-22:11:35:47 INFO     [activity.py:233] ªÓ∂Ø“≥”–µØ¥∞£¨µ„ª˜°∏πÿ±’°ππÿ±’
+[38;5;250m2026-10-22:11:35:47 DEBUG    [ui.py    :201] µ„ª˜ πÿ±’ (1361,705)[0m
+[38;5;250m2026-10-22:11:35:47 DEBUG    [__init__.py:179] operation [click] pre-delay 0.1s[0m
+[38;5;250m2026-10-22:11:35:47 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'click', 'params': (1361, 705)}[0m
+[38;5;250m2026-10-22:11:35:47 DEBUG    [__init__.py:183] operation [click] post-delay 0.1s[0m
+[38;5;250m2026-10-22:11:35:50 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:35:50 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:35:53 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:35:53 DEBUG    [farm.py  :183] µ±«∞“≥√ÊΩ⁄µ„ 141 ∏ˆ£¨◊º±∏µ„ºØ∑ ¡œ[0m
+[38;5;250m2026-10-22:11:35:53 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'takeScreenshot', 'params': (1, 80)}[0m
+[38;5;250m2026-10-22:11:35:54 DEBUG    [PngImagePlugin.py:213] STREAM b'IHDR' 16 13[0m
+[38;5;250m2026-10-22:11:35:54 DEBUG    [PngImagePlugin.py:213] STREAM b'iCCP' 41 302[0m
+[38;5;250m2026-10-22:11:35:54 DEBUG    [PngImagePlugin.py:443] iCCP profile name b'ICC Profile'[0m
+[38;5;250m2026-10-22:11:35:54 DEBUG    [PngImagePlugin.py:445] Compression method 0[0m
+[38;5;250m2026-10-22:11:35:54 DEBUG    [PngImagePlugin.py:213] STREAM b'IDAT' 355 65536[0m
+2026-10-22:11:35:59 INFO     [farm.py  :188] OCR ∂®Œª°∏ºØ∑ ¡œ°π(1080,2404)
+[38;5;250m2026-10-22:11:35:59 DEBUG    [__init__.py:179] operation [click] pre-delay 0.1s[0m
+[38;5;250m2026-10-22:11:35:59 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'click', 'params': (1080, 2404)}[0m
+[38;5;250m2026-10-22:11:36:00 DEBUG    [__init__.py:183] operation [click] post-delay 0.1s[0m
+[38;5;250m2026-10-22:11:36:04 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'dumpWindowHierarchy', 'params': (False, 50)}[0m
+[38;5;250m2026-10-22:11:36:05 DEBUG    [shell.py :161] get window size from 'wm size': WindowSize(width=1440, height=3168) False[0m
+[38;5;250m2026-10-22:11:36:05 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'takeScreenshot', 'params': (1, 80)}[0m
+[38;5;250m2026-10-22:11:36:06 DEBUG    [PngImagePlugin.py:213] STREAM b'IHDR' 16 13[0m
+[38;5;250m2026-10-22:11:36:06 DEBUG    [PngImagePlugin.py:213] STREAM b'iCCP' 41 302[0m
+[38;5;250m2026-10-22:11:36:06 DEBUG    [PngImagePlugin.py:443] iCCP profile name b'ICC Profile'[0m
+[38;5;250m2026-10-22:11:36:06 DEBUG    [PngImagePlugin.py:445] Compression method 0[0m
+[38;5;250m2026-10-22:11:36:06 DEBUG    [PngImagePlugin.py:213] STREAM b'IDAT' 355 65536[0m
+2026-10-22:11:36:10 INFO     [farm.py  :326] µ⁄ 2 ¬÷£∫√Ê∞Â»ŒŒÒ 6 ∏ˆ£®OCR£©
+[38;5;250m2026-10-22:11:36:10 DEBUG    [farm.py  :329]   °§ ¬Úœﬁ ±’€ø€∫√ŒÔµ√Ω±¿¯£®0/1£© | œ¬µ•¡Ï¥Û∂Ó∑ ¡œ◊Ó∏ﬂ+130000 | »•ÕÍ≥…[0m
+[38;5;250m2026-10-22:11:36:10 DEBUG    [farm.py  :329]   °§ ø¥÷±≤•¡Ï√ø»’Ã·œ÷∫Ï∞¸£®0/1£© | π‰15√Îµ√ | »•ÕÍ≥…[0m
+[38;5;250m2026-10-22:11:36:10 DEBUG    [farm.py  :329]   °§ ∑¢œ÷æ´—°∫√ŒÔ£®2/5) | ‰Ø¿¿µ√Ω±¿¯ | »•ÕÍ≥…[0m
+[38;5;250m2026-10-22:11:36:10 DEBUG    [farm.py  :329]   °§ π‰π‰÷ß∏∂±¶∞≈∞≈≈©≥°£®0/1£© | ªπø…¡Ï | »•ÕÍ≥…[0m
+[38;5;250m2026-10-22:11:36:10 DEBUG    [farm.py  :329]   °§ »•∑…÷Ì√‚∑—≥Àπ´ΩªµÿÃ˙£®0/1£© | π‰π‰µ√ | »•ÕÍ≥…[0m
+[38;5;250m2026-10-22:11:36:10 DEBUG    [farm.py  :329]   °§ »•∫Ï∞¸«©µΩµ√∑ ¡œ£®0/1£© | ‰Ø¿¿10sµ√ | »•ÕÍ≥…[0m
+2026-10-22:11:36:10 INFO     [farm.py  :373] ÷¥––»ŒŒÒ£∫∑¢œ÷æ´—°∫√ŒÔ£®2/5)£®‰Ø¿¿µ√Ω±¿¯£©
+[38;5;250m2026-10-22:11:36:10 DEBUG    [__init__.py:179] operation [click] pre-delay 0.1s[0m
+[38;5;250m2026-10-22:11:36:10 DEBUG    [core.py  :111] http request POST /jsonrpc/0 {'jsonrpc': '2.0', 'id': 1, 'method': 'click', 'params': (1231, 1946)}[0m
+[38;5;250m2026-10-22:11:36:11 DEBUG    [__init__.py:183] operation [click] post-delay 0.1s[0m

@@ -14,7 +14,13 @@ block_cipher = None
 HERE = os.path.abspath('.')
 SITE = os.path.join(HERE, '.venv', 'Lib', 'site-packages')
 
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
 datas = [('version.json', '.')]
+
+# 芭芭农场面板是 canvas，滚动后无障碍树不刷新，只能靠 OCR 读任务行，
+# 所以 exe 里必须带上 rapidocr 的模型文件（约 200MB）
+datas += collect_data_files('rapidocr_onnxruntime')
 
 
 def add_file(src, dst):
@@ -67,7 +73,12 @@ hiddenimports = [
     'modules.farm',
     'modules.ocr',
     'modules.utils',
-]
+    'onnxruntime',
+    'cv2',
+    'shapely',
+    'pyclipper',
+    'yaml',
+] + collect_submodules('rapidocr_onnxruntime')
 
 a = Analysis(
     ['main.py'],
@@ -78,10 +89,8 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    # OCR 依赖太重（约 200MB），exe 里不带；源码模式装了 rapidocr 会自动启用
     excludes=(['hmdriver2'] if not os.path.isdir(os.path.join(SITE, 'hmdriver2')) else [])
-    + ['tkinter', 'matplotlib', 'numpy',
-       'rapidocr_onnxruntime', 'onnxruntime', 'cv2', 'shapely', 'pyclipper'],
+    + ['tkinter', 'matplotlib'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

@@ -57,7 +57,8 @@ def on_activity(d, tries=2):
 
 
 # 会被任务拉起、且首启会弹隐私弹窗挡住自动化的 App
-BLOCK_APPS = ('com.eg.android.AlipayGphone', 'com.ss.android.article.lite')
+BLOCK_APPS = ('com.eg.android.AlipayGphone', 'com.ss.android.article.lite',
+              'com.vivo.appfilter')
 
 
 def ensure_taobao(d):

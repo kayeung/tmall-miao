@@ -24,6 +24,10 @@ FARM_BTNS = ('去完成', '去签到', '去答题', '去逛逛', '去开启')
 SKIP_KEYWORDS = ('支付宝', '蚂蚁森林', '前往支付', '安装桌面')
 
 BROWSE_SECONDS = {'15': 20, '5': 10}
+
+# 只有图标关闭键的活动弹窗，用文案识别后按返回关闭
+POPUP_TEXTS = ('继续施肥', '取消订阅', '明日7点后记得来领', '立即收下',
+               '开心收下', '今日施肥越多')
 MAX_ROUNDS = 40
 
 # 以下按钮画在 canvas 上，无障碍树里拿不到，用比例/OCR 兜底
@@ -70,25 +74,29 @@ def _panel_open(nodes):
 
 
 def open_farm(d):
-    """搜索并进入芭芭农场，返回是否成功。"""
+    """搜索并进入芭芭农场，返回是否成功。
+
+    直接点卡片第一个图标「马上施肥」进农场：
+    「进入」经常落到「农场领红包」营销页，还要退回来再点图标，白白多两步。
+    """
     logger.info('搜索并进入芭芭农场')
     open_taobao_search(d, KEYWORD)
     time.sleep(3)
 
     w, h = d.display_size
 
-    # 1) 卡片右上「进入」
-    d.click(int(w * ENTER_RATIO[0]), int(h * ENTER_RATIO[1]))
+    # 1) 直达：卡片图标「马上施肥」
+    d.click(int(w * CARD_ICON_RATIO[0]), int(h * CARD_ICON_RATIO[1]))
     time.sleep(7)
     clear_popups(d)
     if _on_farm(d):
         return True
 
-    # 2) 「进入」常落到「农场领红包」子页，退回搜索页点卡片图标「马上施肥」
-    logger.info('「进入」未到主界面，改为点卡片图标「马上施肥」')
+    # 2) 兜底：卡片右上「进入」
+    logger.info('「马上施肥」未进入农场，改用卡片右上「进入」')
     if _back_to_search(d):
-        d.click(int(w * CARD_ICON_RATIO[0]), int(h * CARD_ICON_RATIO[1]))
-        time.sleep(8)
+        d.click(int(w * ENTER_RATIO[0]), int(h * ENTER_RATIO[1]))
+        time.sleep(7)
         clear_popups(d)
         if _on_farm(d):
             return True
@@ -98,7 +106,7 @@ def open_farm(d):
 
 
 def clear_popups(d, rounds=4):
-    """清掉推广弹窗 / 滑块验证，直到能正常操作。"""
+    """清掉推广弹窗 / 施肥提醒 / 滑块验证，直到能正常操作。"""
     for _ in range(rounds):
         act = (d.app_current() or {}).get('activity') or ''
         if 'Ext2Container' in act:
@@ -106,6 +114,16 @@ def clear_popups(d, rounds=4):
             d.go_back()
             time.sleep(2)
             continue
+
+        nodes = ui.dump_nodes(d)
+        blob = ' '.join((n['text'] + ' ' + n['desc']) for n in nodes)
+        # 这类弹窗只有一个 X 图标，文案识别不到「关闭」，直接按返回
+        if any(t in blob for t in POPUP_TEXTS):
+            logger.info('检测到活动弹窗，按返回关闭')
+            d.go_back()
+            time.sleep(1.8)
+            continue
+
         if not activity.close_popups(d, rounds=1):
             return
         time.sleep(1)
@@ -142,6 +160,21 @@ def claim_daily(d):
 
 def open_collect(d):
     """点底栏「集肥料」打开任务面板，返回面板节点。"""
+    # 先确认还在农场页，否则点底栏只会点到别的东西
+    if not _on_farm(d):
+        for _ in range(3):
+            d.go_back()
+            time.sleep(2)
+            if _on_farm(d):
+                break
+        else:
+            logger.warning('不在农场页，重新进入一次')
+            if not open_farm(d):
+                return None
+
+    # 页面上可能有「明日7点后来领」这类弹窗挡住底栏，先清掉
+    clear_popups(d)
+
     # 农场页有入场动画，页面没稳定时点击会落空，先等一下
     time.sleep(2.5)
     nodes = ui.dump_nodes(d)
@@ -180,18 +213,118 @@ def _browse_wait(desc):
     return 20
 
 
+def _scroll_panel(d):
+    """在任务面板内向下滑一屏（面板下方还藏着任务）。"""
+    w, h = d.display_size
+    try:
+        d.swipe(int(w * 0.5), int(h * 0.78), int(w * 0.5), int(h * 0.45), duration=0.45)
+    except Exception as e:
+        logger.warning('面板滑动失败（忽略）: %s', e)
+        return False
+    time.sleep(1.5)
+    return True
+
+
+def _panel_to_top(d, times=3):
+    w, h = d.display_size
+    for _ in range(times):
+        try:
+            d.swipe(int(w * 0.5), int(h * 0.45), int(w * 0.5), int(h * 0.80), duration=0.45)
+        except Exception:
+            return
+        time.sleep(1.2)
+
+
+# 可自动完成的动作关键词：浏览15秒 / 逛15秒 / 看直播 / 观看
+BROWSE_WORDS = ('浏览', '逛', '看直播', '观看', '逛逛')
+
+
+def _pick_browse(tasks, attempts, external=(), screen_h=0):
+    for t in tasks:
+        label = t['name'] + t['desc']
+        if any(k in label for k in SKIP_KEYWORDS):
+            continue
+        if t['name'] in external:
+            continue
+        if t['btn'] != '去完成':
+            continue
+        if not any(w in label for w in BROWSE_WORDS):
+            continue
+        if screen_h and not (0 < t['y'] < screen_h * 0.98):
+            continue  # 已经滚出屏幕的旧节点，别点
+        if attempts.get(t['name'], 0) >= 2:
+            continue
+        return t
+    return None
+
+
+def _ocr_panel_tasks(d):
+    """用 OCR 读面板上可见的任务行。
+
+    这个面板是 canvas 渲染，滚动后无障碍树不会刷新（实测 vivo 上完全滞后），
+    所以滚动找任务必须靠 OCR 读屏。
+    """
+    items = ocr.read_texts(d)
+    if not items:
+        return []
+    btn_labels = ('去完成', '去领取', '去邀请', '去逛逛', '去签到', '去开启')
+    btns = [it for it in items if it[0] in btn_labels]
+
+    def is_junk(text):
+        t = text.strip()
+        return (not t) or t[0] in '+＋' or t.replace('+', '').isdigit()
+
+    tasks = []
+    for text, bx, by, _score in btns:
+        # 任务名在整行最左侧（右侧紧挨按钮的是 +600 这类奖励数字）
+        left = [it for it in items
+                if it[1] < bx - 60 and abs(it[2] - by) <= 55
+                and not is_junk(it[0]) and len(it[0]) >= 4]
+        # 标题在按钮中心上方，下面那行是「逛15秒得」这类描述
+        above = [it for it in left if it[2] <= by]
+        pool = above or left
+        name = min(pool, key=lambda it: (it[1], it[2]))[0] if pool else ''
+
+        below = [it for it in items
+                 if it[1] < bx - 60 and 20 < it[2] - by <= 80 and not is_junk(it[0])]
+        desc = min(below, key=lambda it: it[2])[0] if below else ''
+
+        tasks.append({'name': name, 'desc': desc, 'btn': text,
+                      'x': bx, 'y': by, 'node': None})
+    tasks.sort(key=lambda t: t['y'])
+    return tasks
+
+
+def _tap_task(d, task):
+    if task.get('node') is not None:
+        ui.tap_node(d, task['node'])
+    else:
+        d.click(task['x'], task['y'])
+
+
 def run_tasks(d):
     """在「做任务赚肥料」面板里逐个执行任务，返回完成数。"""
     done = 0
     signed = False
+    attempts = {}
+    external = set()  # 实测会跳转外部 App 的任务名，后续直接跳过
     for round_no in range(1, MAX_ROUNDS + 1):
         nodes = open_collect(d)
         if not nodes:
             logger.warning('集肥料面板没打开')
             break
 
-        tasks = ui.parse_tasks(nodes, FARM_BTNS)
-        logger.info('第 %d 轮：面板任务 %d 个', round_no, len(tasks))
+        h = d.display_size[1]
+        use_ocr = ocr.available()
+
+        def read_tasks():
+            if use_ocr:
+                return _ocr_panel_tasks(d)
+            return ui.parse_tasks(ui.dump_nodes(d), FARM_BTNS)
+
+        tasks = read_tasks()
+        logger.info('第 %d 轮：面板任务 %d 个（%s）', round_no, len(tasks),
+                    'OCR' if use_ocr else 'a11y')
         for t in tasks:
             logger.debug('  · %s | %s | %s', t['name'], t['desc'], t['btn'])
 
@@ -200,28 +333,56 @@ def run_tasks(d):
             sign = next((t for t in tasks if t['btn'] == '去签到'), None)
             if sign:
                 logger.info('点击「去签到」')
-                ui.tap_node(d, sign['node'])
+                _tap_task(d, sign)
                 signed = True
                 time.sleep(3)
                 continue
 
-        task = None
-        for t in tasks:
-            label = t['name'] + t['desc']
-            if any(k in label for k in SKIP_KEYWORDS):
-                logger.debug('跳转外部 App 的任务，跳过：%s', t['name'])
-                continue
-            if t['btn'] == '去完成' and ('浏览' in t['desc'] or '浏览' in t['name']):
-                task = t
+        task = _pick_browse(tasks, attempts, external, h)
+
+        # 当前屏没有就往下滑着找（面板下方还藏着任务）
+        names = {t['name'] for t in tasks}
+        for _ in range(3):
+            if task:
                 break
+            logger.info('当前屏没有可做的任务，向下滑动查找')
+            if not _scroll_panel(d):
+                break
+            time.sleep(0.8)
+            tasks = read_tasks()
+            new_names = {t['name'] for t in tasks}
+            if new_names == names:
+                if not use_ocr:
+                    # 面板是 canvas，滚动后无障碍树可能不刷新，坐标不可信就别点
+                    logger.info('滚动后任务列表没变化（无障碍树未刷新），停止下滑')
+                    break
+                continue
+            names = new_names
+            task = _pick_browse(tasks, attempts, external, h)
+
+        if not task:
+            # 回到顶部再确认一次，避免滑到底后错过上面新刷出的任务
+            _panel_to_top(d)
+            tasks = read_tasks()
+            task = _pick_browse(tasks, attempts, external, h)
 
         if not task:
             logger.info('没有可自动完成的浏览任务了')
             break
 
         logger.info('执行任务：%s（%s）', task['name'], task['desc'])
-        ui.tap_node(d, task['node'])
+        attempts[task['name']] = attempts.get(task['name'], 0) + 1
+        _tap_task(d, task)
         time.sleep(2.5)
+
+        # 有些任务名字里不带「支付宝」，点下去却会拉起支付宝，直接拉黑
+        pkg = (d.app_current() or {}).get('package') or ''
+        if pkg and pkg != ui.TAOBAO_PKG:
+            logger.warning('任务「%s」跳转外部 App（%s），加入跳过名单', task['name'], pkg)
+            external.add(task['name'])
+            activity.ensure_taobao(d)
+            time.sleep(2)
+            continue
 
         # 搜索类任务：先点「搜索发现」里的卡片进商品页，否则不计时
         if '搜一搜' in task['name'] or '搜索' in task['name']:
