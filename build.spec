@@ -78,8 +78,10 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['hmdriver2', 'tkinter', 'matplotlib', 'numpy'] if not os.path.isdir(
-        os.path.join(SITE, 'hmdriver2')) else ['tkinter', 'matplotlib', 'numpy'],
+    # OCR 依赖太重（约 200MB），exe 里不带；源码模式装了 rapidocr 会自动启用
+    excludes=(['hmdriver2'] if not os.path.isdir(os.path.join(SITE, 'hmdriver2')) else [])
+    + ['tkinter', 'matplotlib', 'numpy',
+       'rapidocr_onnxruntime', 'onnxruntime', 'cv2', 'shapely', 'pyclipper'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
