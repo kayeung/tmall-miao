@@ -236,8 +236,11 @@ def close_popups(d, rounds=3):
     return closed
 
 
-def tap_entry(d, ratio, label):
-    """点击活动页底部的入口按钮（去赚金币 / 去赚能量）。"""
+def tap_entry(d, ratio, label, offset=0):
+    """点击活动页底部的入口按钮（去赚金币 / 去赚能量）。
+
+    offset 用于失败重试时小幅上下平移（页面没渲染完时横幅定位可能偏）。
+    """
     n = close_popups(d)
     if n:
         logger.info('已关闭 %d 个弹窗', n)
@@ -254,6 +257,7 @@ def tap_entry(d, ratio, label):
         _gentle_scroll_top(d)
         y = _banner_mid(d) or int(h * ratio[1])
 
+    y += int(h * 0.02) * offset
     x = int(w * ratio[0])
     logger.debug('通过坐标点击「%s」(%d,%d)', label, x, y)
     d.click(x, y)
@@ -374,21 +378,20 @@ def ensure_panel(d, titles, ratio, label, attempts=3):
             return nodes
 
         try:
-            if i == 0:
-                if not on_activity(d) and not back_to_activity(d):
-                    logger.info('不在活动页，重新搜索进入')
-                    reenter_activity(d)
-                else:
-                    logger.info('任务面板未打开，点击「%s」', label)
-                    tap_entry(d, ratio, label)
-            else:
-                logger.info('任务面板仍未打开，重新进入活动页（第%d次）', i + 1)
+            if not on_activity(d) and not back_to_activity(d):
+                logger.info('不在活动页，重新搜索进入')
                 reenter_activity(d)
+            elif i >= attempts - 1:
+                logger.info('多次点击仍未打开面板，重新进入活动页（第%d次）', i + 1)
+                reenter_activity(d)
+            else:
+                logger.info('任务面板未打开，点击「%s」（第%d次）', label, i + 1)
+                tap_entry(d, ratio, label, offset=i)
         except Exception as e:
             logger.warning('打开任务面板失败: %s', e)
             return None
 
-        nodes = ui.wait_for(d, lambda ns: bool(ns), timeout=8, desc='任务面板',
+        nodes = ui.wait_for(d, lambda ns: bool(ns), timeout=10, desc='任务面板',
                             dump=lambda dd: ui.dump_panel(dd, titles))
         if nodes:
             logger.info('任务面板已打开')
