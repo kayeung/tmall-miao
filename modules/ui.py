@@ -249,7 +249,7 @@ def _is_noise(text):
     return stripped.startswith('0123456789')
 
 
-def parse_tasks(nodes):
+def parse_tasks(nodes, btns=BTN_TEXTS):
     """把任务面板解析成任务卡片列表。
 
     每个卡片: {'name', 'desc', 'btn', 'node', 'x', 'y'}
@@ -258,7 +258,7 @@ def parse_tasks(nodes):
     """
     tasks = []
     for btn in nodes:
-        if btn['text'] not in BTN_TEXTS:
+        if btn['text'] not in btns:
             continue
         b_cy = cy(btn)
         cands = [n for n in nodes

@@ -64,6 +64,8 @@ hiddenimports = [
     'modules.activity',
     'modules.taobao',
     'modules.energy',
+    'modules.farm',
+    'modules.ocr',
     'modules.utils',
 ]
 

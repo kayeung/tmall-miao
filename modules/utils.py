@@ -156,6 +156,13 @@ def _submit_search(d, text):
     else:
         edits = ui.find_nodes(page, rid=f'{pkg}:id/searchEdit') or \
             [n for n in page if n['cls'] == 'EditText']
+        if not edits:
+            # 页面可能还没渲染完，稍等再找一次
+            time.sleep(1.5)
+            page = ui.dump_nodes(d)
+            edits = ui.find_nodes(page, rid=f'{pkg}:id/searchEdit') or \
+                [n for n in page if n['cls'] == 'EditText']
+
         if edits:
             ui.tap_node(d, edits[0])
             time.sleep(0.6)

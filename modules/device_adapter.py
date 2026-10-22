@@ -171,6 +171,13 @@ class DeviceAdapter:
                 return line
         return None
 
+    def send_keys(self, text):
+        """向当前焦点输入文字。"""
+        if self.device_type == 'hmdriver2':
+            self._device.input_text(text)
+        else:
+            self._device.send_keys(text)
+
     def start_app(self, package_name, activity=None, user=None):
         """启动应用（安卓侧优先显式启动组件；user 用于应用分身所在的用户空间）"""
         if self.device_type == 'hmdriver2':
@@ -184,7 +191,12 @@ class DeviceAdapter:
                 cmd += ['--user', str(user)]
             cmd += ['-n', comp]
             logger.debug('显式启动应用: %s', ' '.join(cmd))
-            self._device.shell(cmd)
+            out = self._device.shell(cmd)
+            text = str(getattr(out, 'output', out))
+            # 设备没有这个用户空间（比如选了分身但机器不支持）时退回当前用户
+            if user and ('does not exist' in text or 'Error' in text or 'error' in text):
+                logger.warning('用户空间 %s 不可用，改在当前用户启动', user)
+                self._device.shell(['am', 'start', '-n', comp])
         else:
             logger.debug('未解析到启动组件，退回 app_start')
             self._device.app_start(package_name, activity=activity)
