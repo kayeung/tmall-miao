@@ -529,6 +529,26 @@ def _page_signature(nodes):
     return {_label(n) for n in nodes if _label(n)}
 
 
+# 商品页落地标记：官方 1111 版用它们替换了失效的魔法串 310x310xzq90
+PRODUCT_MARKERS = ('金币已抵', '金币热卖价')
+
+# 任务页/商品页可能出现的特征，用来判断「点完是否真的跳转成功」
+PAGE_LANDED_HINTS = ('搜索发现', '搜索有福利', '秒可领') + PRODUCT_MARKERS + \
+                    ('浏览15', '浏览5秒', '浏览 15')
+
+
+def page_landed(nodes):
+    """当前页面是否已经进入任务页/商品页（点击落空时不会命中）。"""
+    blob = ' '.join(_label(n) for n in nodes)
+    return any(h in blob for h in PAGE_LANDED_HINTS)
+
+
+def _landed_marker(nodes):
+    """命中的落地标记文案，用于日志。"""
+    blob = ' '.join(_label(n) for n in nodes)
+    return next((h for h in PAGE_LANDED_HINTS if h in blob), '')
+
+
 def _search_cards(nodes):
     """从当前页面里挑出「搜索发现」下面的商品卡片（按位置从上到下）。"""
     anchor = [n for n in nodes if _label(n) == '搜索发现']
@@ -570,8 +590,24 @@ def open_search_card(d, nodes, tries=2):
                 ui.tap_node(d, card)
                 time.sleep(3.5)
                 page = ui.dump_nodes(d)
-                if _page_signature(page) != before:
+
+                # 优先用商品页角标确认落地（比"页面变了"更可靠）
+                if _landed_marker(page) in PRODUCT_MARKERS:
+                    logger.info('已进入商品页（命中「%s」）', _landed_marker(page))
                     return True
+
+                if _page_signature(page) == before:
+                    # 可能只是还在加载，再等一次
+                    time.sleep(1.5)
+                    page = ui.dump_nodes(d)
+                    if _landed_marker(page) in PRODUCT_MARKERS:
+                        logger.info('已进入商品页（命中「%s」）', _landed_marker(page))
+                        return True
+
+                if _page_signature(page) != before:
+                    logger.info('页面已跳转（未命中商品页角标，按页面变化继续）')
+                    return True
+
                 logger.info('页面没变化，换一张卡片')
             return False
 
@@ -621,17 +657,29 @@ def run_browse_task(d, task, seconds, titles=None, parse_fn=None):
         logger.warning('任务按钮点击后仍未进入任务页，跳过本次')
         return False
 
+    # 落地校验：没命中任何任务页特征时多半是页面还没加载好
+    nodes = ui.dump_nodes(d)
+    if not page_landed(nodes):
+        logger.info('暂未检测到任务页特征，等待 2 秒再确认')
+        time.sleep(2)
+        nodes = ui.dump_nodes(d)
+    marker = _landed_marker(nodes)
+    if marker:
+        logger.debug('任务页特征：%s', marker)
+    else:
+        logger.warning('点击后未检测到任务页特征（搜索发现/秒可领/金币已抵），按普通浏览继续')
+
     if is_search:
         # 搜索页偶尔加载较慢，等「搜索发现」出来再点卡片
-        nodes = wait_search_page(d, timeout=8) or ui.dump_nodes(d)
+        if not _is_search_page(nodes):
+            nodes = wait_search_page(d, timeout=8) or nodes
         if _is_search_page(nodes):
             if open_search_card(d, nodes):
                 time.sleep(2)
         else:
             logger.warning('搜索页未出现「搜索发现」，按普通浏览处理')
-    else:
-        nodes = ui.dump_nodes(d)
-        if _is_search_page(nodes) and open_search_card(d, nodes):
+    elif _is_search_page(nodes):
+        if open_search_card(d, nodes):
             time.sleep(2)
 
     browse_page(d, seconds)
