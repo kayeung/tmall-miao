@@ -1,4 +1,5 @@
 import argparse
+import atexit
 import json
 import os
 import platform
@@ -273,6 +274,15 @@ class _LoadingSpinner:
             print(f"\r{Colors.FAIL}{self.message} 失败！{Colors.ENDC}{' ' * 10}")
 
 
+def _restore_device_state(d):
+    """退出时还原脚本改动过的系统设置（常亮 / 媒体音量）。"""
+    try:
+        from modules import activity
+        activity.restore_device_state(d)
+    except Exception:
+        pass
+
+
 def main():
     """程序主函数"""
     parser = argparse.ArgumentParser(description='喵币助手Next - 618自动化任务')
@@ -328,6 +338,8 @@ def main():
             d = DeviceAdapter(device_type=device_type, serial=serial)
             spinner.stop(success=True)
             print(f"{Colors.OKGREEN}设备连接成功！({d}){Colors.ENDC}")
+            # 退出时还原脚本改动过的系统设置（充电常亮、媒体音量）
+            atexit.register(_restore_device_state, d)
             break
         except Exception as e:
             spinner.stop(success=False)

@@ -8,7 +8,8 @@ import re
 import time
 
 from modules import ui
-from modules.utils import human_swipe, open_taobao_search, search_in_taobao
+from modules.utils import (human_swipe, open_taobao_search, restore_volume,
+                           search_in_taobao, shell_text)
 
 logger = logging.getLogger(__name__)
 
@@ -323,13 +324,40 @@ def ensure_unlocked(d, tries=2):
     raise RuntimeError('手机处于锁屏状态，请先解锁手机（或关闭锁屏密码）后再运行')
 
 
-def prepare_device(d):
-    """运行前的设备准备：常亮 + 解锁。"""
+# 脚本改动过的系统设置（退出时还原）
+_DEVICE_STATE = {}
+
+
+def keep_screen_on(d):
+    """运行期间保持充电常亮。
+
+    注意：`svc power stayon true` 实际是把全局设置 `stay_on_while_plugged_in` 改成 7，
+    属于**持久化**修改——不还原就会出现「充电时屏幕只变暗、永远不熄屏」。
+    这里先记录原值，程序退出时由 restore_device_state() 还原。
+    """
+    if 'stay_on' in _DEVICE_STATE:
+        return
+    original = shell_text(d, ['settings', 'get', 'global', 'stay_on_while_plugged_in'])
+    _DEVICE_STATE['stay_on'] = original if original.isdigit() else '0'
+    shell_text(d, ['settings', 'put', 'global', 'stay_on_while_plugged_in', '7'])
+    logger.debug('运行期间充电常亮（原值 %s）', _DEVICE_STATE['stay_on'])
+
+
+def restore_device_state(d):
+    """还原脚本改动过的系统设置（常亮、媒体音量）。"""
+    original = _DEVICE_STATE.pop('stay_on', None)
+    if original is not None:
+        shell_text(d, ['settings', 'put', 'global', 'stay_on_while_plugged_in', original])
+        logger.info('已还原常亮设置（stay_on_while_plugged_in=%s）', original)
     try:
-        # 充电/连接 USB 时不熄屏，避免跑到一半黑屏
-        d.shell(['svc', 'power', 'stayon', 'true'])
+        restore_volume(d)
     except Exception as e:
-        logger.debug('设置常亮失败（忽略）: %s', e)
+        logger.debug('恢复音量失败: %s', e)
+
+
+def prepare_device(d):
+    """运行前的设备准备：常亮（临时） + 解锁。"""
+    keep_screen_on(d)
     ensure_unlocked(d)
 
 

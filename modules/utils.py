@@ -244,9 +244,48 @@ def json2xml(d, hierarchy):
     return d.json2xml(hierarchy)
 
 
+def shell_text(d, cmd):
+    """执行 shell 命令并返回文本输出（失败返回空串）。"""
+    try:
+        out = d.shell(cmd)
+    except Exception as e:
+        logger.debug('执行 %s 失败: %s', cmd, e)
+        return ''
+    return (getattr(out, 'output', '') or str(out)).strip()
+
+
+# 运行前被改动的媒体音量，退出时恢复
+_ORIGINAL_VOLUME = {}
+
+
 def mute(d):
-    """静音"""
-    d.mute()
+    """静音。
+
+    会把媒体音量改成 0，这同样是**持久化**的：不还原的话，跑完脚本手机媒体音量一直是 0。
+    所以先记下原音量，退出时由 restore_volume() 还原。
+    """
+    if 'media' not in _ORIGINAL_VOLUME:
+        raw = shell_text(d, ['cmd', 'media_session', 'volume', '--stream', '3', '--get'])
+        m = re.search(r'(\d+)\s*$', raw)
+        if m:
+            _ORIGINAL_VOLUME['media'] = int(m.group(1))
+        else:
+            logger.debug('未能读取媒体音量，退出时无法还原（原输出：%s）', raw)
+
+    if _ORIGINAL_VOLUME.get('media') is not None:
+        shell_text(d, ['cmd', 'media_session', 'volume', '--stream', '3', '--set', '0'])
+        return
+
+    d.mute()  # 读不到原音量时退回按音量键
+
+
+def restore_volume(d):
+    """还原运行前的媒体音量。"""
+    volume = _ORIGINAL_VOLUME.pop('media', None)
+    if volume is None:
+        return
+    shell_text(d, ['cmd', 'media_session', 'volume', '--stream', '3', '--set', str(volume)])
+    logger.info('已恢复媒体音量：%d', volume)
 
 
 logger = logging.getLogger(__name__)
