@@ -7,7 +7,7 @@ import logging
 import re
 import time
 
-from modules import ui
+from modules import ocr, ui
 from modules.utils import (human_swipe, open_taobao_search, restore_volume,
                            search_in_taobao, shell_text)
 
@@ -238,10 +238,50 @@ def close_popups(d, rounds=3):
     return closed
 
 
+def tap_entry_ocr(d, label):
+    """用 OCR 在屏幕上找入口文案并点击（canvas 页面/无障碍树没文案时兜底）。"""
+    if not ocr.available():
+        logger.debug('OCR 不可用，跳过 OCR 定位')
+        return False
+
+    # 同一次截图只 OCR 一次，先精确匹配再退化为包含匹配
+    items = ocr.read_texts(d)
+    if not items:
+        return False
+
+    for text, x, y, score in items:
+        if score >= 0.55 and text == label:
+            logger.info('OCR 定位到「%s」(%d,%d)，点击', label, x, y)
+            d.click(x, y)
+            return True
+
+    for text, x, y, score in items:
+        if score >= 0.55 and label in text:
+            logger.info('OCR 近似定位到「%s」(%d,%d)，点击', text, x, y)
+            d.click(x, y)
+            return True
+
+    logger.info('OCR 未找到「%s」', label)
+    return False
+
+
+# 活动页顶部才会出现的文案，用来判断"是否已经在顶部"
+TOP_HINTS = ('双11', '全场', '加抵', '已累计', '累计已得')
+
+
+def _at_activity_top(d, nodes=None):
+    """页面是否已经在顶部（在顶部还往下拖会触发 H5 下拉刷新）。"""
+    nodes = nodes if nodes is not None else ui.dump_nodes(d)
+    blob = ' '.join((n['text'] + ' ' + n['desc']) for n in nodes)
+    return any(h in blob for h in TOP_HINTS)
+
+
 def tap_entry(d, ratio, label, offset=0):
     """点击活动页底部的入口按钮（去赚金币 / 去赚能量）。
 
-    offset 用于失败重试时小幅上下平移（页面没渲染完时横幅定位可能偏）。
+    顺序：无障碍文案 -> OCR 文案 -> 黄色横幅定位 -> 固定比例。
+    OCR 放在前面，是因为页面刷新/重绘时无障碍树里常常没有入口文案，
+    而横幅定位在刷新中会算不出来，最后只能退化到比例坐标，容易点空。
     """
     n = close_popups(d)
     if n:
@@ -252,12 +292,17 @@ def tap_entry(d, ratio, label, offset=0):
         logger.debug('通过文案点击「%s」', label)
         return True
 
+    if tap_entry_ocr(d, label):
+        return True
+
     w, h = d.display_size
     y = _banner_mid(d)
-    if y is None:
-        # 横幅看不到，先把页面滚回顶部再找一次
+    if y is None and not _at_activity_top(d, nodes):
+        # 只有确认不在顶部时才上滚，否则会触发下拉刷新把页面刷没
         _gentle_scroll_top(d)
-        y = _banner_mid(d) or int(h * ratio[1])
+        y = _banner_mid(d)
+    if y is None:
+        y = int(h * ratio[1])
 
     y += int(h * 0.02) * offset
     x = int(w * ratio[0])
@@ -394,11 +439,12 @@ def back_to_activity(d, attempts=3):
     return False
 
 
-def ensure_panel(d, titles, ratio, label, attempts=3):
+def ensure_panel(d, titles, ratio, label, attempts=4):
     """确保指定任务面板处于打开状态，返回面板内的节点列表。
 
-    第一次只做「退回活动页 + 点入口」，失败后直接重启淘宝重新进入活动，
-    这样页面一定在顶部，坐标点击才不会落偏。
+    点击顺序见 tap_entry（无障碍文案 -> OCR -> 横幅/比例）。
+    前 attempts-1 次失败后，最后一次改成「强制 OCR 定位」；
+    仍然打不开就重新搜索进入再等一次，避免整轮任务直接报错结束。
     """
     for i in range(attempts):
         ensure_taobao(d)
@@ -410,12 +456,14 @@ def ensure_panel(d, titles, ratio, label, attempts=3):
             if not on_activity(d) and not back_to_activity(d):
                 logger.info('不在活动页，重新搜索进入')
                 reenter_activity(d)
-            elif i >= attempts - 1:
-                logger.info('多次点击仍未打开面板，重新进入活动页（第%d次）', i + 1)
-                reenter_activity(d)
-            else:
+            elif i < attempts - 1:
                 logger.info('任务面板未打开，点击「%s」（第%d次）', label, i + 1)
                 tap_entry(d, ratio, label, offset=i)
+            else:
+                logger.info('前 %d 次仍未打开面板，改用 OCR 定位「%s」', i, label)
+                if not tap_entry_ocr(d, label):
+                    logger.info('OCR 也没找到入口，重新进入活动页')
+                    reenter_activity(d)
         except Exception as e:
             logger.warning('打开任务面板失败: %s', e)
             return None
@@ -425,7 +473,20 @@ def ensure_panel(d, titles, ratio, label, attempts=3):
         if nodes:
             logger.info('任务面板已打开')
             return nodes
-    return None
+
+    # 最后兜底：重新搜索进入再等一次
+    logger.warning('多次尝试仍未打开面板，重新进入活动页兜底')
+    try:
+        reenter_activity(d)
+    except Exception as e:
+        logger.warning('重新进入活动失败: %s', e)
+        return None
+
+    nodes = ui.wait_for(d, lambda ns: bool(ns), timeout=15, desc='任务面板',
+                        dump=lambda dd: ui.dump_panel(dd, titles))
+    if nodes:
+        logger.info('任务面板已打开')
+    return nodes
 
 
 def scroll_panel(d, direction='up'):
