@@ -72,6 +72,7 @@ hiddenimports = [
     'modules.energy',
     'modules.farm',
     'modules.ocr',
+    'modules.captcha',
     'modules.utils',
     'onnxruntime',
     'cv2',

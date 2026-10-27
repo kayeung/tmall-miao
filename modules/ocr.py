@@ -42,19 +42,43 @@ def screenshot(d, path=None):
     return path
 
 
+def read_image(path, max_side=2000):
+    """对已有截图做 OCR，返回 [(文字, 中心x, 中心y, 置信度), ...]。
+
+    坐标一律换算回**原图**像素，所以不同分辨率的手机拿到的都是可直接点击的坐标。
+    图片长边超过 max_side 时先等比缩小再识别（提速），结果坐标再乘回去。
+    """
+    if not available():
+        return []
+
+    from PIL import Image
+
+    img = Image.open(path).convert('RGB')
+    w0, h0 = img.size
+    scale = 1.0
+    longest = max(w0, h0)
+    if max_side and longest > max_side:
+        scale = max_side / float(longest)
+        small = img.resize((max(1, int(w0 * scale)), max(1, int(h0 * scale))),
+                           Image.LANCZOS)
+        small_path = f'{path}.small.png'
+        small.save(small_path)
+        path = small_path
+
+    result, _ = _get_engine()(path)
+    items = []
+    for box, text, score in (result or []):
+        xs = [p[0] / scale for p in box]
+        ys = [p[1] / scale for p in box]
+        items.append((text.strip(), int(sum(xs) / 4), int(sum(ys) / 4), float(score)))
+    return items
+
+
 def read_texts(d, path=None):
     """截屏并 OCR，返回 [(文字, 中心x, 中心y, 置信度), ...]。"""
     if not available():
         return []
-    path = screenshot(d, path)
-    engine = _get_engine()
-    result, _ = engine(path)
-    items = []
-    for box, text, score in (result or []):
-        xs = [p[0] for p in box]
-        ys = [p[1] for p in box]
-        items.append((text.strip(), int(sum(xs) / 4), int(sum(ys) / 4), float(score)))
-    return items
+    return read_image(screenshot(d, path))
 
 
 def locate(d, targets, contains=False):

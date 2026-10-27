@@ -7,7 +7,7 @@ import logging
 import re
 import time
 
-from modules import ocr, ui
+from modules import captcha, ocr, ui
 from modules.utils import (human_swipe, open_taobao_search, restore_volume,
                            search_in_taobao, shell_text)
 
@@ -128,7 +128,12 @@ def open_activity(d, keyword=KEYWORD):
             logger.warning('打开淘宝/搜索失败（%s），重试一次', e)
             time.sleep(3)
     logger.info('等待活动页加载...')
-    if not wait_activity(d):
+    nodes = wait_activity(d)
+    if not nodes:
+        # 有可能是被滑块验证拦住了，先处理掉再等一次
+        if captcha.handle(d):
+            nodes = wait_activity(d, timeout=15)
+    if not nodes:
         raise RuntimeError('未检测到活动页，请确认淘宝已登录、活动可正常进入')
     logger.info('活动页已打开')
     time.sleep(2)
@@ -452,6 +457,11 @@ def ensure_panel(d, titles, ratio, label, attempts=4):
         if nodes:
             return nodes
 
+        # 面板打不开时先排查是不是被滑块验证拦住了
+        if not captcha.handle(d):
+            logger.warning('滑块验证未通过，跳过本次面板打开')
+            continue
+
         try:
             if not on_activity(d) and not back_to_activity(d):
                 logger.info('不在活动页，重新搜索进入')
@@ -652,6 +662,12 @@ def open_search_card(d, nodes, tries=2):
                 time.sleep(3.5)
                 page = ui.dump_nodes(d)
 
+                if captcha.detected_in(page):
+                    logger.warning('点击卡片后出现滑块验证，先通过验证')
+                    if not captcha.solve(d):
+                        return False
+                    page = ui.dump_nodes(d)
+
                 # 优先用商品页角标确认落地（比"页面变了"更可靠）
                 if _landed_marker(page) in PRODUCT_MARKERS:
                     logger.info('已进入商品页（命中「%s」）', _landed_marker(page))
@@ -720,6 +736,12 @@ def run_browse_task(d, task, seconds, titles=None, parse_fn=None):
 
     # 落地校验：没命中任何任务页特征时多半是页面还没加载好
     nodes = ui.dump_nodes(d)
+    if captcha.detected_in(nodes):
+        logger.warning('新页面被滑块验证拦截，先通过验证')
+        if not captcha.solve(d):
+            return False
+        nodes = ui.dump_nodes(d)
+
     if not page_landed(nodes):
         logger.info('暂未检测到任务页特征，等待 2 秒再确认')
         time.sleep(2)

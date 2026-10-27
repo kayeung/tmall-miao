@@ -10,7 +10,7 @@
 import logging
 import time
 
-from modules import activity, ocr, ui
+from modules import activity, captcha, ocr, ui
 from modules.utils import mute, open_taobao_search
 
 logger = logging.getLogger(__name__)
@@ -117,6 +117,13 @@ def clear_popups(d, rounds=4):
 
         nodes = ui.dump_nodes(d)
         blob = ' '.join((n['text'] + ' ' + n['desc']) for n in nodes)
+
+        # 淘宝会随机在跳转后弹滑块验证，挡住整页
+        if captcha.detected_in(nodes):
+            logger.warning('农场页出现滑块验证，尝试自动通过')
+            captcha.solve(d)
+            continue
+
         # 这类弹窗只有一个 X 图标，文案识别不到「关闭」，直接按返回
         if any(t in blob for t in POPUP_TEXTS):
             logger.info('检测到活动弹窗，按返回关闭')
