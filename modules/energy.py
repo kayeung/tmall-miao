@@ -104,6 +104,8 @@ def run(d, mode='auto', keyword=activity.KEYWORD):
     claimed_total = set()
     attempts = {}
 
+    start_energy = activity.read_energy(d)
+
     for round_no in range(1, MAX_ROUNDS + 1):
         nodes = activity.ensure_panel(d, activity.ENERGY_PANEL, activity.ENERGY_ENTRY, ENTRY_LABEL)
         if not nodes:
@@ -153,4 +155,14 @@ def run(d, mode='auto', keyword=activity.KEYWORD):
 
     logger.info('能量任务执行完毕：共完成 %d 次浏览任务，领取 %d 次任务奖励、%d 个累计奖励',
                 done, claimed_tasks, len(claimed_total))
+
+    # 收尾：先关面板再读能量值（面板盖住页面时读到的是旧值）
+    activity.close_panel(d)
+    time.sleep(3)
+    end_energy = activity.read_energy(d)
+    if start_energy is not None and end_energy is not None:
+        gained = end_energy - start_energy
+        logger.info('能量值：%d -> %d（净增 %+d）', start_energy, end_energy, gained)
+        return f'{done}次浏览/{len(claimed_total)}个累计奖/净增{gained}能量'
+
     return f'{done}次浏览/{len(claimed_total)}个累计奖'

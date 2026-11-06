@@ -830,6 +830,22 @@ def find_task_all(d, titles, parse_fn, picker):
     return find_task(d, titles, parse_fn, picker)
 
 
+_ENERGY_RE = re.compile(r'剩余\s*(\d+)\s*能量')
+
+
+def read_energy(d, nodes=None):
+    """读活动页上的「剩余 N 能量」。
+
+    任务面板会把页面盖住，读之前要先 close_panel()，否则拿到的是旧值或读不到。
+    """
+    nodes = nodes if nodes is not None else ui.dump_nodes(d)
+    for n in nodes:
+        m = _ENERGY_RE.search((n['text'] or '') + ' ' + (n['desc'] or ''))
+        if m:
+            return int(m.group(1))
+    return None
+
+
 def progress(nodes, label='完成进度'):
     """读取面板进度。
 

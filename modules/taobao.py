@@ -260,4 +260,7 @@ def run(d, mode='auto', keyword=activity.KEYWORD):
         logger.warning('累计奖励领取异常: %s', e)
 
     logger.info('金币任务执行完毕：共完成 %d 次浏览任务，领取 %d 次奖励', done, claimed)
+
+    # 收尾关掉面板，把手机留在活动页（下次运行也更好判断状态）
+    activity.close_panel(d)
     return f'{done}次浏览/{claimed}次领奖'
